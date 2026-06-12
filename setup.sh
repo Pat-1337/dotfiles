@@ -104,6 +104,10 @@ setup_macos() {
     sudo ln -sfn "$(brew --prefix)/opt/openjdk/libexec/openjdk.jdk" /Library/Java/JavaVirtualMachines/openjdk.jdk
     export PATH="$(brew --prefix)/opt/openjdk/bin:$PATH"
 
+    info "iTerm2 + shell integration"
+    brew install --cask iterm2
+    [ -f "$HOME/.iterm2_shell_integration.zsh" ] || curl -fsSL https://iterm2.com/shell_integration/zsh -o "$HOME/.iterm2_shell_integration.zsh"
+
     info "Bun"
     command -v bun >/dev/null || curl -fsSL https://bun.sh/install | bash
 
