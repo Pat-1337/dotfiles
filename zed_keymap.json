@@ -1,0 +1,45 @@
+[
+  {
+    "context": "Editor && vim_mode == normal",
+    "use_key_equivalents": true,
+    "bindings": {
+      "tab": "pane::RevealInProjectPanel",
+      "cmd-p": "file_finder::Toggle",
+      "d d": ["workspace::SendKeystrokes", "\" _ ctrl-shift-d d"],
+      "g p": ["workspace::SendKeystrokes", "v i w \" _ d \" + p"]
+    }
+  },
+  {
+    "context": "Editor && vim_mode == visual",
+    "bindings": {
+      "ctrl-shift-d": "vim::VisualDelete",
+      "ctrl-shift-x": "vim::VisualDelete",
+      "ctrl-shift-c": "vim::Substitute",
+      "d": ["workspace::SendKeystrokes", "\" _ ctrl-shift-d"],
+      "x": ["workspace::SendKeystrokes", "\" _ ctrl-shift-x"],
+      "c": ["workspace::SendKeystrokes", "\" _ ctrl-shift-c"],
+      "m": ["workspace::SendKeystrokes", "\" + ctrl-shift-d"]
+    }
+  },
+  {
+    "context": "ProjectPanel && not_editing",
+    "bindings": {
+      "h": "project_panel::CollapseSelectedEntry",
+      "l": "project_panel::ExpandSelectedEntry",
+      "j": "menu::SelectNext",
+      "k": "menu::SelectPrevious",
+      "o": "menu::Confirm",
+      "r": "project_panel::Rename",
+      "z c": "project_panel::CollapseSelectedEntry",
+      "z o": "project_panel::ExpandSelectedEntry",
+      "x": "project_panel::Cut",
+      "c": "project_panel::Copy",
+      "p": "project_panel::Paste",
+      "d": "project_panel::Delete",
+      "a": "project_panel::NewFile",
+      "shift-a": "project_panel::NewDirectory",
+      "shift-y": "workspace::CopyRelativePath",
+      "g y": "workspace::CopyPath"
+    }
+  }
+]

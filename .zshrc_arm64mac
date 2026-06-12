@@ -1,0 +1,75 @@
+### Custom ###
+
+# Dedupe PATH entries automatically
+typeset -U path PATH
+
+# PATH
+path=(
+  $HOME/Developer/bin
+  /opt/homebrew/opt/llvm/bin
+  /opt/homebrew/opt/sqlite/bin
+  /opt/homebrew/opt/libpq/bin
+  $HOME/.pyenv/bin
+  $HOME/.surrealdb
+  $HOME/.local/bin
+  $HOME/.cargo/bin
+  $HOME/.bun/bin
+  /usr/local/sbin
+  $path
+  /Applications/Obsidian.app/Contents/MacOS
+)
+
+# Prompt for non-omz
+export PS1="%m:%~ %n λ "
+
+# Oh My Zsh
+export ZSH="$HOME/.oh-my-zsh"
+ZSH_THEME="eastwood"
+plugins=(git macos virtualenvwrapper zsh-syntax-highlighting zsh-autosuggestions)
+zstyle ':omz:update' mode auto
+zstyle ':omz:update' frequency 31
+source $ZSH/oh-my-zsh.sh
+
+export LANG=en_US.UTF-8
+
+# Build flags — Apple Silicon Homebrew lives in /opt/homebrew
+export LDFLAGS="-L/opt/homebrew/opt/llvm/lib -L/opt/homebrew/opt/sqlite/lib"
+export CPPFLAGS="-I/opt/homebrew/opt/llvm/include -I/opt/homebrew/opt/sqlite/include"
+export PKG_CONFIG_PATH="/opt/homebrew/opt/sqlite/lib/pkgconfig"
+export CPATH="/opt/homebrew/include:$CPATH"
+export LIBRARY_PATH="/opt/homebrew/lib:$LIBRARY_PATH"
+export DYLD_LIBRARY_PATH="/opt/homebrew/opt/sqlite/lib:/opt/homebrew/opt/poppler/lib:/opt/homebrew/lib:$DYLD_LIBRARY_PATH"
+export MONO_GAC_PREFIX="/opt/homebrew"
+export ARCHFLAGS="-arch arm64"
+
+# Tools
+export PYENV_ROOT="$HOME/.pyenv"
+if command -v pyenv >/dev/null; then
+  eval "$(pyenv init --path)"
+  eval "$(pyenv init -)"
+  eval "$(pyenv virtualenv-init -)"
+fi
+command -v thefuck >/dev/null && eval "$(thefuck --alias)"
+command -v fzf >/dev/null && eval "$(fzf --zsh)"
+export BUN_INSTALL="$HOME/.bun"
+[ -s "$BUN_INSTALL/_bun" ] && source "$BUN_INSTALL/_bun"
+[ -s "$HOME/.config/envman/load.sh" ] && source "$HOME/.config/envman/load.sh"
+
+# Preferred editor for local and remote sessions
+[[ -n $SSH_CONNECTION ]] && export EDITOR='vim' || export EDITOR='mvim'
+
+# Aliases
+alias zshrc='nano ~/.zshrc && source ~/.zshrc'
+alias vimrc='vim ~/.vimrc'
+alias py='python3'
+alias update='brew update; brew upgrade; brew cleanup; brew doctor'
+alias xcode='rm -rf ~/Library/Developer/Xcode/DerivedData/*'
+alias quar='xattr -d com.apple.quarantine'
+alias deletebranches='git branch | grep -v "dev" | grep -v "master" | xargs git branch -D'
+alias ccat='pygmentize -g -O style=colorful,linenos=1'
+
+# 0x0.st
+0x0() { curl -F "file=@$1" https://0x0.st; }
+
+# Secrets
+[ -s "$HOME/.secrets" ] && source "$HOME/.secrets"
