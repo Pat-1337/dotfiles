@@ -51,6 +51,7 @@ if command -v pyenv >/dev/null; then
 fi
 command -v thefuck >/dev/null && eval "$(thefuck --alias)"
 command -v fzf >/dev/null && eval "$(fzf --zsh)"
+command -v atuin >/dev/null && eval "$(atuin init zsh)"
 export BUN_INSTALL="$HOME/.bun"
 [ -s "$BUN_INSTALL/_bun" ] && source "$BUN_INSTALL/_bun"
 [ -s "$HOME/.config/envman/load.sh" ] && source "$HOME/.config/envman/load.sh"
@@ -63,11 +64,11 @@ export BUN_INSTALL="$HOME/.bun"
 alias zshrc='nano ~/.zshrc && source ~/.zshrc'
 alias vimrc='vim ~/.vimrc'
 alias py='python3'
-alias update='brew update; brew upgrade; brew cleanup; brew doctor'
+alias update='topgrade'
 alias xcode='rm -rf ~/Library/Developer/Xcode/DerivedData/*'
 alias quar='xattr -d com.apple.quarantine'
 alias deletebranches='git branch | grep -v "dev" | grep -v "master" | xargs git branch -D'
-alias ccat='pygmentize -g -O style=colorful,linenos=1'
+alias ccat='bat'
 
 # 0x0.st
 0x0() { curl -F "file=@$1" https://0x0.st; }

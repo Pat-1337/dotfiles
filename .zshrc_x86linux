@@ -29,11 +29,12 @@ export NVM_DIR="$HOME/.nvm"
 # Tools
 command -v thefuck >/dev/null && eval "$(thefuck --alias)"
 command -v fzf >/dev/null && eval "$(fzf --zsh)"
+command -v atuin >/dev/null && eval "$(atuin init zsh)"
 
 # Aliases
 alias zshrc='nano ~/.zshrc && source ~/.zshrc'
 alias py='python3'
-alias update="sudo flatpak update; sudo apt-get update; sudo apt-get -y upgrade; sudo apt -y autoremove"
+alias update='topgrade'
 if [ -n "$WAYLAND_DISPLAY" ]; then
   alias pbcopy='wl-copy'
   alias pbpaste='wl-paste'

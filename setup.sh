@@ -9,6 +9,20 @@ NVM_VERSION="v0.40.5"
 
 info() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 
+if [ "$(id -u)" -eq 0 ]; then
+    echo "Don't run setup.sh with sudo — run it as your user." >&2
+    exit 1
+fi
+
+backup_existing() {
+    local target="$1" new="$2"
+    if [ -f "$target" ] && ! cmp -s "$new" "$target"; then
+        local bak="$target.bak.$(date +%Y%m%d-%H%M%S)"
+        cp "$target" "$bak"
+        echo "Existing $(basename "$target") backed up to $bak"
+    fi
+}
+
 install_oh_my_zsh() {
     info "Oh My Zsh + plugins"
     if [ ! -d "$HOME/.oh-my-zsh" ]; then
@@ -23,6 +37,7 @@ install_oh_my_zsh() {
 install_rust() {
     info "Rust (rustup)"
     command -v cargo >/dev/null || curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
 }
 
 install_node() {
@@ -33,6 +48,26 @@ install_node() {
     export NVM_DIR="$HOME/.nvm"
     . "$NVM_DIR/nvm.sh"
     command -v node >/dev/null || nvm install --lts
+}
+
+debian_rust_tools() {
+    info "Rust CLI tools (apt where available, cargo otherwise)"
+    command -v tldr >/dev/null     || sudo apt-get install -y tealdeer || cargo install --locked tealdeer
+    command -v tokei >/dev/null    || sudo apt-get install -y tokei    || cargo install --locked tokei
+    command -v atuin >/dev/null    || sudo apt-get install -y atuin    || cargo install --locked atuin
+    command -v gitui >/dev/null    || sudo apt-get install -y gitui    || cargo install --locked gitui
+    command -v zellij >/dev/null   || sudo apt-get install -y zellij   || cargo install --locked zellij
+    command -v topgrade >/dev/null || cargo install --locked topgrade
+    command -v yazi >/dev/null     || cargo install --locked yazi-fm yazi-cli
+}
+
+arch_topgrade() {
+    info "topgrade (AUR — not in official repos)"
+    command -v topgrade >/dev/null && return 0
+    if command -v paru >/dev/null; then paru -S --needed --noconfirm topgrade
+    elif command -v yay >/dev/null; then yay -S --needed --noconfirm topgrade
+    else cargo install --locked topgrade
+    fi
 }
 
 install_claude() {
@@ -48,6 +83,8 @@ github_auth() {
 install_dotfiles() {
     local zshrc_src="$1"
     info "Dotfiles (.zshrc, .vimrc, .secrets)"
+    backup_existing "$HOME/.zshrc" "$DOTFILES_DIR/$zshrc_src"
+    backup_existing "$HOME/.vimrc" "$DOTFILES_DIR/.vimrc"
     cp "$DOTFILES_DIR/$zshrc_src" "$HOME/.zshrc"
     cp "$DOTFILES_DIR/.vimrc" "$HOME/.vimrc"
     if [ -f "$DOTFILES_DIR/.secrets" ]; then
@@ -103,9 +140,10 @@ setup_macos() {
 
     info "Brew packages"
     brew install git gh macvim neovim btop thefuck fzf pyenv pyenv-virtualenv \
-        pygments llvm sqlite libpq poppler ripgrep fd \
+        llvm sqlite libpq poppler ripgrep fd \
         cmake go node mono openjdk \
-        fastfetch tldr lazydocker tmux cloc
+        fastfetch lazydocker bat gitui yazi zellij \
+        tealdeer tokei topgrade atuin
 
     sudo ln -sfn "$(brew --prefix)/opt/openjdk/libexec/openjdk.jdk" /Library/Java/JavaVirtualMachines/openjdk.jdk
     export PATH="$(brew --prefix)/opt/openjdk/bin:$PATH"
@@ -143,11 +181,12 @@ setup_debian() {
         build-essential cmake clang llvm libssl-dev libclang-dev libpq-dev \
         python3-dev python3-pip python3-setuptools pipx virtualenvwrapper \
         mono-complete golang default-jdk vlc dconf-editor ripgrep fd-find \
-        xxd tldr tmux cloc wl-clipboard xdg-utils
+        xxd bat wl-clipboard xdg-utils
     sudo apt-get install -y thefuck || pipx install thefuck
     sudo apt-get install -y fastfetch || echo "fastfetch not in repos, skipping"
     mkdir -p "$HOME/.local/bin"
     ln -sf "$(command -v fdfind)" "$HOME/.local/bin/fd"
+    ln -sf "$(command -v batcat)" "$HOME/.local/bin/bat"
 
     info "GitHub CLI (official apt repo)"
     if ! command -v gh >/dev/null; then
@@ -193,6 +232,7 @@ setup_debian() {
 
     gnome_tweaks
     install_rust
+    debian_rust_tools
     install_node
     install_claude
     install_oh_my_zsh
@@ -210,7 +250,7 @@ setup_arch() {
         python python-pip python-pipx python-virtualenvwrapper \
         mono go jdk-openjdk vlc dconf-editor \
         github-cli fzf thefuck ripgrep fd ghostty \
-        tldr lazydocker tmux cloc \
+        lazydocker bat gitui yazi zellij tealdeer tokei atuin \
         docker docker-compose postgresql
 
     info "Docker group"
@@ -223,6 +263,7 @@ setup_arch() {
 
     gnome_tweaks
     install_rust
+    arch_topgrade
     install_node
     install_claude
     install_oh_my_zsh
