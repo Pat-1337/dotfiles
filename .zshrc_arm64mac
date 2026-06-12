@@ -6,6 +6,8 @@ typeset -U path PATH
 # PATH
 path=(
   $HOME/Developer/bin
+  /opt/homebrew/bin
+  /opt/homebrew/sbin
   /opt/homebrew/opt/llvm/bin
   /opt/homebrew/opt/sqlite/bin
   /opt/homebrew/opt/libpq/bin
