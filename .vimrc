@@ -57,7 +57,13 @@ let g:ycm_global_ycm_extra_conf='~/.vim/bundle/YouCompleteMe/.ycm_extra_conf.py'
 let g:ycm_autoclose_preview_window_after_insertion = 1
 let g:ycm_autoclose_preview_window_after_completion = 1
 
-vnoremap <C-C> :w !xclip -i -sel c<CR><CR>
+if has('mac')
+    vnoremap <C-C> :w !pbcopy<CR><CR>
+elseif !empty($WAYLAND_DISPLAY)
+    vnoremap <C-C> :w !wl-copy<CR><CR>
+else
+    vnoremap <C-C> :w !xclip -i -sel c<CR><CR>
+endif
 
 set nocompatible              " be iMproved, required
 filetype off                  " required

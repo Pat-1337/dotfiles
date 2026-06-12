@@ -35,6 +35,11 @@ install_node() {
     command -v node >/dev/null || nvm install --lts
 }
 
+install_claude() {
+    info "Claude Code"
+    command -v claude >/dev/null || curl -fsSL https://claude.ai/install.sh | bash
+}
+
 github_auth() {
     info "GitHub auth (gh handles SSH key generation & upload)"
     gh auth status >/dev/null 2>&1 || gh auth login --git-protocol ssh --web
@@ -99,7 +104,8 @@ setup_macos() {
     info "Brew packages"
     brew install git gh macvim neovim btop thefuck fzf pyenv pyenv-virtualenv \
         pygments llvm sqlite libpq poppler ripgrep fd \
-        cmake go node mono openjdk
+        cmake go node mono openjdk \
+        fastfetch tldr lazydocker tmux cloc
 
     sudo ln -sfn "$(brew --prefix)/opt/openjdk/libexec/openjdk.jdk" /Library/Java/JavaVirtualMachines/openjdk.jdk
     export PATH="$(brew --prefix)/opt/openjdk/bin:$PATH"
@@ -122,6 +128,7 @@ setup_macos() {
     killall Dock
 
     install_rust
+    install_claude
     install_oh_my_zsh
     github_auth
     install_dotfiles ".zshrc_arm64mac"
@@ -135,7 +142,8 @@ setup_debian() {
     sudo apt-get install -y zsh git curl wget gpg xclip vim-nox btop \
         build-essential cmake clang llvm libssl-dev libclang-dev libpq-dev \
         python3-dev python3-pip python3-setuptools pipx virtualenvwrapper \
-        mono-complete golang default-jdk vlc dconf-editor ripgrep fd-find
+        mono-complete golang default-jdk vlc dconf-editor ripgrep fd-find \
+        xxd tldr tmux cloc wl-clipboard xdg-utils
     sudo apt-get install -y thefuck || pipx install thefuck
     sudo apt-get install -y fastfetch || echo "fastfetch not in repos, skipping"
     mkdir -p "$HOME/.local/bin"
@@ -149,6 +157,12 @@ setup_debian() {
         echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
         sudo apt-get update && sudo apt-get install -y gh
     fi
+
+    info "lazydocker (no apt package — official install script, lands in ~/.local/bin)"
+    command -v lazydocker >/dev/null || curl -fsSL https://raw.githubusercontent.com/jesseduffield/lazydocker/master/scripts/install_update_linux.sh | bash
+
+    info "Ghostty (no official apt package — snap is the maintained route)"
+    command -v ghostty >/dev/null || sudo snap install ghostty --classic || echo "ghostty: snap unavailable, install manually"
 
     info "Neovim (latest, official tarball — apt version is too old for kickstart)"
     if ! command -v nvim >/dev/null; then
@@ -180,6 +194,7 @@ setup_debian() {
     gnome_tweaks
     install_rust
     install_node
+    install_claude
     install_oh_my_zsh
     github_auth
     install_dotfiles ".zshrc_x86linux"
@@ -190,11 +205,12 @@ setup_debian() {
 
 setup_arch() {
     info "Pacman packages"
-    sudo pacman -Syu --needed --noconfirm zsh git curl wget xclip vim neovim \
+    sudo pacman -Syu --needed --noconfirm zsh git curl wget xclip wl-clipboard xdg-utils vim neovim \
         btop fastfetch base-devel cmake clang llvm openssl postgresql-libs \
         python python-pip python-pipx python-virtualenvwrapper \
         mono go jdk-openjdk vlc dconf-editor \
-        github-cli fzf thefuck ripgrep fd \
+        github-cli fzf thefuck ripgrep fd ghostty \
+        tldr lazydocker tmux cloc \
         docker docker-compose postgresql
 
     info "Docker group"
@@ -208,6 +224,7 @@ setup_arch() {
     gnome_tweaks
     install_rust
     install_node
+    install_claude
     install_oh_my_zsh
     github_auth
     install_dotfiles ".zshrc_x86linux"
