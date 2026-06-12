@@ -284,4 +284,9 @@ case "$(uname -s)" in
     *) echo "Unsupported OS: $(uname -s)" >&2; exit 1 ;;
 esac
 
+if command -v topgrade >/dev/null; then
+    info "Upgrading existing packages (topgrade)"
+    topgrade -y || true
+fi
+
 info "Done. Restart your terminal (or run: exec zsh)"
