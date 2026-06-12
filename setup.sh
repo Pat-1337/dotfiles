@@ -87,6 +87,13 @@ install_dotfiles() {
     backup_existing "$HOME/.vimrc" "$DOTFILES_DIR/.vimrc"
     cp "$DOTFILES_DIR/$zshrc_src" "$HOME/.zshrc"
     cp "$DOTFILES_DIR/.vimrc" "$HOME/.vimrc"
+    mkdir -p "$HOME/.config"
+    cp "$DOTFILES_DIR/topgrade.toml" "$HOME/.config/topgrade.toml"
+    mkdir -p "$HOME/.config/zed"
+    backup_existing "$HOME/.config/zed/settings.json" "$DOTFILES_DIR/zed_settings.json"
+    backup_existing "$HOME/.config/zed/keymap.json" "$DOTFILES_DIR/zed_keymap.json"
+    cp "$DOTFILES_DIR/zed_settings.json" "$HOME/.config/zed/settings.json"
+    cp "$DOTFILES_DIR/zed_keymap.json" "$HOME/.config/zed/keymap.json"
     if [ -f "$DOTFILES_DIR/.secrets" ]; then
         cp "$DOTFILES_DIR/.secrets" "$HOME/.secrets"
         chmod 600 "$HOME/.secrets"
@@ -148,6 +155,9 @@ setup_macos() {
     sudo ln -sfn "$(brew --prefix)/opt/openjdk/libexec/openjdk.jdk" /Library/Java/JavaVirtualMachines/openjdk.jdk
     export PATH="$(brew --prefix)/opt/openjdk/bin:$PATH"
 
+    info "Zed"
+    command -v zed >/dev/null || brew install --cask zed
+
     info "iTerm2 + shell integration"
     brew install --cask iterm2
     [ -f "$HOME/.iterm2_shell_integration.zsh" ] || curl -fsSL https://iterm2.com/shell_integration/zsh -o "$HOME/.iterm2_shell_integration.zsh"
@@ -200,6 +210,9 @@ setup_debian() {
     info "lazydocker (no apt package — official install script, lands in ~/.local/bin)"
     command -v lazydocker >/dev/null || curl -fsSL https://raw.githubusercontent.com/jesseduffield/lazydocker/master/scripts/install_update_linux.sh | bash
 
+    info "Zed (official installer — lands in ~/.local)"
+    command -v zed >/dev/null || curl -f https://zed.dev/install.sh | sh
+
     info "Ghostty (no official apt package — snap is the maintained route)"
     command -v ghostty >/dev/null || sudo snap install ghostty --classic || echo "ghostty: snap unavailable, install manually"
 
@@ -245,7 +258,7 @@ setup_debian() {
 
 setup_arch() {
     info "Pacman packages"
-    sudo pacman -Syu --needed --noconfirm zsh git curl wget xclip wl-clipboard xdg-utils vim neovim \
+    sudo pacman -Syu --needed --noconfirm zsh git curl wget xclip wl-clipboard xdg-utils vim neovim zed \
         btop fastfetch base-devel cmake clang llvm openssl postgresql-libs \
         python python-pip python-pipx python-virtualenvwrapper \
         mono go jdk-openjdk vlc dconf-editor \
