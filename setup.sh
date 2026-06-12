@@ -161,6 +161,10 @@ setup_macos() {
     info "iTerm2 + shell integration"
     brew install --cask iterm2
     [ -f "$HOME/.iterm2_shell_integration.zsh" ] || curl -fsSL https://iterm2.com/shell_integration/zsh -o "$HOME/.iterm2_shell_integration.zsh"
+    if [ -f "$DOTFILES_DIR/iterm2.plist" ]; then
+        defaults export com.googlecode.iterm2 "$HOME/.iterm2.plist.bak" 2>/dev/null || true
+        defaults import com.googlecode.iterm2 "$DOTFILES_DIR/iterm2.plist"
+    fi
 
     info "Bun"
     command -v bun >/dev/null || curl -fsSL https://bun.sh/install | bash
