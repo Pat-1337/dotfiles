@@ -174,9 +174,10 @@ setup_macos() {
     pipx install aws-mfa || true
     pipx install virtualenvwrapper || true
 
-    info "macOS tweaks (fast Dock show)"
+    info "macOS tweaks (fast Dock show, no recent apps in Dock)"
     defaults write com.apple.dock autohide-delay -float 0
     defaults write com.apple.dock autohide-time-modifier -float 0.4
+    defaults write com.apple.dock show-recents -bool false
     killall Dock
 
     install_rust
