@@ -150,7 +150,7 @@ setup_macos() {
         llvm sqlite libpq poppler ripgrep fd \
         cmake go node mono openjdk \
         fastfetch lazydocker bat gitui yazi zellij \
-        tealdeer tokei topgrade atuin
+        tealdeer tokei topgrade atuin pre-commit
 
     sudo ln -sfn "$(brew --prefix)/opt/openjdk/libexec/openjdk.jdk" /Library/Java/JavaVirtualMachines/openjdk.jdk
     export PATH="$(brew --prefix)/opt/openjdk/bin:$PATH"
@@ -196,7 +196,7 @@ setup_debian() {
         build-essential cmake clang llvm libssl-dev libclang-dev libpq-dev \
         python3-dev python3-pip python3-setuptools pipx virtualenvwrapper \
         mono-complete golang default-jdk vlc dconf-editor ripgrep fd-find \
-        xxd bat wl-clipboard xdg-utils
+        xxd bat wl-clipboard xdg-utils pre-commit
     sudo apt-get install -y thefuck || pipx install thefuck
     sudo apt-get install -y fastfetch || echo "fastfetch not in repos, skipping"
     mkdir -p "$HOME/.local/bin"
@@ -269,7 +269,7 @@ setup_arch() {
         mono go jdk-openjdk vlc dconf-editor \
         github-cli fzf thefuck ripgrep fd ghostty \
         lazydocker bat gitui yazi zellij tealdeer tokei atuin \
-        docker docker-compose postgresql
+        docker docker-compose postgresql pre-commit
 
     info "Docker group"
     sudo usermod -aG docker "$USER"
