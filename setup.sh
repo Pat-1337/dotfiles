@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
 
-### Dotfiles setup — macOS (arm64), Debian/Ubuntu, Arch/CachyOS
+### Dotfiles setup — macOS (arm64), Debian/Ubuntu, Arch/CachyOS/Omarchy
 
 set -uo pipefail
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NVM_VERSION="v0.40.5"
+
+is_omarchy() {
+    [ -d "$HOME/.local/share/omarchy" ] \
+        || command -v omarchy-update >/dev/null 2>&1 \
+        || grep -qi omarchy /etc/os-release 2>/dev/null
+}
 
 info() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 
@@ -279,7 +285,11 @@ setup_arch() {
         sudo -u postgres initdb -D /var/lib/postgres/data
     fi
 
-    gnome_tweaks
+    if is_omarchy; then
+        info "Omarchy detected — skipping GNOME tweaks & Neovim config (Hyprland/LazyVim managed by Omarchy)"
+    else
+        gnome_tweaks
+    fi
     install_rust
     arch_topgrade
     install_node
@@ -288,7 +298,7 @@ setup_arch() {
     github_auth
     install_dotfiles ".zshrc_x86linux"
     setup_vim
-    setup_neovim
+    is_omarchy || setup_neovim
     use_zsh
 }
 
