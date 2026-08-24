@@ -1,0 +1,11 @@
+# Global runtimes, installed by setup.sh into ~/.config/mise/config.toml.
+#
+# Python is absent on purpose: uv owns it. Rust is absent too — mise's rust
+# backend only drives rustup underneath, so setup.sh installs rustup directly.
+# Java and mono stay system packages: the macOS JVM symlink and the
+# YouCompleteMe Java completer both build against them.
+
+[tools]
+node = "lts"
+bun = "latest"
+go = "latest"

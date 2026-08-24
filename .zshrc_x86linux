@@ -5,10 +5,17 @@ typeset -U path PATH
 
 # PATH
 path=(
+  $HOME/Developer/bin
   $HOME/.cargo/bin
   $HOME/.local/bin
   $path
 )
+
+# Omarchy: its omarchy-* commands are only on PATH for bash/graphical sessions
+if [ -d "$HOME/.local/share/omarchy" ]; then
+  export OMARCHY_PATH="$HOME/.local/share/omarchy"
+  path=($OMARCHY_PATH/bin $path)
+fi
 
 # Oh My Zsh
 export ZSH="$HOME/.oh-my-zsh"
@@ -21,15 +28,13 @@ source $ZSH/oh-my-zsh.sh
 export LANG=en_US.UTF-8
 export EDITOR='vim'
 
-# nvm
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
-
 # Tools
+# mise manages node/bun/go (see ~/.config/mise/config.toml); uv manages python
+command -v mise >/dev/null && eval "$(mise activate zsh)"
 command -v thefuck >/dev/null && eval "$(thefuck --alias)"
 command -v fzf >/dev/null && eval "$(fzf --zsh)"
 command -v atuin >/dev/null && eval "$(atuin init zsh)"
+command -v uv >/dev/null && eval "$(uv generate-shell-completion zsh)"
 
 # Aliases
 alias zshrc='nano ~/.zshrc && source ~/.zshrc'
@@ -48,4 +53,18 @@ alias open="xdg-open"
 0x0() { curl -F "file=@$1" https://0x0.st; }
 
 # Secrets
+# ~/.secrets is read-only; `secrets` unlocks it for one edit, then re-locks it
+secrets() {
+  local f="$HOME/.secrets"
+  [ -f "$f" ] || printf '# Sourced by ~/.zshrc — API keys and tokens. Edit with: secrets\n' > "$f"
+  local -a ed=(${=EDITOR:-vim})
+  # GUI editors return immediately, which would re-lock the file mid-edit
+  case ${ed[1]} in
+    mvim|gvim) ed+=(-f) ;;
+    code|zed|subl) ed+=(--wait) ;;
+  esac
+  chmod 600 "$f" || return
+  { "${ed[@]}" "$f" } always { chmod 400 "$f" }
+  source "$f"
+}
 [ -s "$HOME/.secrets" ] && source "$HOME/.secrets"

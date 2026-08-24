@@ -1,29 +1,167 @@
 #!/usr/bin/env bash
 
 ### Dotfiles setup — macOS (arm64), Debian/Ubuntu, Arch/CachyOS/Omarchy
+###
+### Usage: ./setup.sh [--no-debloat]
+###
+### Every question is asked up front, then the install runs unattended — start it
+### and walk away. Nothing personal is stored in this repo: the git identity is
+### prompted for and written to ~/.gitconfig, and ~/.secrets never leaves $HOME.
+###
+### Non-interactive (CI, or a re-run): pipe from /dev/null and it keeps whatever
+### git identity is already configured. GIT_NAME, GIT_EMAIL, GIT_WORK_DIR,
+### GIT_WORK_EMAIL, DEBLOAT_GROUPS and AUTH_GH can all be preset in the
+### environment to skip the matching prompt.
+###
+### On Omarchy, ./omarchy-debloat.sh runs first — it strips the preinstalled app
+### layer (see that script's --help for the groups) so this script installs the
+### toolchain instead. --no-debloat skips that pass.
 
 set -uo pipefail
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-NVM_VERSION="v0.40.5"
+DEBLOAT=1
 
-is_omarchy() {
-    [ -d "$HOME/.local/share/omarchy" ] \
-        || command -v omarchy-update >/dev/null 2>&1 \
-        || grep -qi omarchy /etc/os-release 2>/dev/null
+for arg in "$@"; do
+    case "$arg" in
+    --no-debloat) DEBLOAT=0 ;;
+    *) echo "Usage: ${0##*/} [--no-debloat]" >&2; exit 1 ;;
+    esac
+done
+
+have() { command -v "$1" >/dev/null; }
+
+# apt prompts through debconf and on changed config files unless told otherwise
+apt_get() {
+    sudo DEBIAN_FRONTEND=noninteractive apt-get -y \
+        -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef "$@"
 }
 
+# A cask install aborts if the app is already in /Applications, so check first
+install_cask() {
+    [ -d "/Applications/$2.app" ] && return 0
+    brew install --cask "$1"
+}
+
+# `read -p` writes the prompt to stderr, so command substitution stays clean
+ask() {
+    local prompt="$1" default="${2:-}" reply
+    if [ -n "$default" ]; then
+        read -r -p "$prompt [$default]: " reply </dev/tty
+    else
+        read -r -p "$prompt: " reply </dev/tty
+    fi
+    echo "${reply:-$default}"
+}
 info() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
+is_omarchy() { [ -d "$HOME/.local/share/omarchy" ] || have omarchy-update; }
+
+# 0x10de is NVIDIA's PCI vendor id. Read from sysfs rather than shelling out to
+# lspci, which needs pciutils — not yet installed when the package list is built.
+has_nvidia() {
+    have nvidia-smi && return 0
+    [ -d /proc/driver/nvidia ] && return 0
+    grep -qil 0x10de /sys/bus/pci/devices/*/vendor 2>/dev/null
+}
 
 if [ "$(id -u)" -eq 0 ]; then
     echo "Don't run setup.sh with sudo — run it as your user." >&2
     exit 1
 fi
 
+### Everything interactive lives here — the rest of the run must not block.
+collect_inputs() {
+    GIT_NAME="${GIT_NAME:-$(git config --global user.name 2>/dev/null)}"
+    GIT_EMAIL="${GIT_EMAIL:-$(git config --global user.email 2>/dev/null)}"
+    GIT_WORK_DIR="${GIT_WORK_DIR:-}"
+    GIT_WORK_EMAIL="${GIT_WORK_EMAIL:-}"
+    DEBLOAT_GROUPS="${DEBLOAT_GROUPS:-default}"
+    AUTH_GH="${AUTH_GH:-ask}"
+
+    if [ ! -t 0 ]; then
+        info "Non-interactive — keeping the existing git identity and default groups"
+        if [ "$AUTH_GH" = ask ]; then
+            AUTH_GH=no
+            have gh && gh auth status >/dev/null 2>&1 && AUTH_GH=authed
+        fi
+        return 0
+    fi
+
+    info "Setup questions (everything after this runs unattended)"
+    GIT_NAME="$(ask "Git author name" "$GIT_NAME")"
+    GIT_EMAIL="$(ask "Git author email" "$GIT_EMAIL")"
+    GIT_WORK_DIR="$(ask "Directory for work repos, for a separate git identity (blank to skip)" "$GIT_WORK_DIR")"
+    [ -n "$GIT_WORK_DIR" ] && GIT_WORK_EMAIL="$(ask "Git email inside $GIT_WORK_DIR" "$GIT_WORK_EMAIL")"
+
+    if is_omarchy && ((DEBLOAT)); then
+        echo "Omarchy debloat: 'default' (apps webapps agents), 'all', 'skip', or a group list."
+        DEBLOAT_GROUPS="$(ask "Debloat groups" "$DEBLOAT_GROUPS")"
+    fi
+
+    # Already logged in (likely, since cloning this repo needed it) — don't ask
+    if [ "$AUTH_GH" = ask ]; then
+        if have gh && gh auth status >/dev/null 2>&1; then
+            AUTH_GH=authed
+        else
+            case "$(ask "Log in to GitHub at the end? Needs a browser (y/n)" y)" in
+            [yY]*) AUTH_GH=yes ;;
+            *) AUTH_GH=no ;;
+            esac
+        fi
+    fi
+
+    echo
+    echo "  git identity   : ${GIT_NAME:-<unset>} <${GIT_EMAIL:-unset}>"
+    [ -n "$GIT_WORK_DIR" ] && echo "  work identity  : <$GIT_WORK_EMAIL> inside $GIT_WORK_DIR"
+    is_omarchy && ((DEBLOAT)) && echo "  omarchy debloat: $DEBLOAT_GROUPS"
+    case "$AUTH_GH" in
+    authed) echo "  github login   : already authenticated" ;;
+    *) echo "  github login   : $AUTH_GH" ;;
+    esac
+    read -r -p "
+Press Enter to start, Ctrl-C to abort. " </dev/tty
+}
+
+# One password prompt, refreshed in the background, so no step blocks later on
+sudo_keepalive() {
+    info "Asking for sudo once"
+    sudo -v || exit 1
+    ( while sudo -n true 2>/dev/null; do sleep 50; kill -0 "$$" 2>/dev/null || break; done ) &
+    SUDO_PID=$!
+    trap 'kill "$SUDO_PID" 2>/dev/null' EXIT
+}
+
+configure_git() {
+    [ -n "$GIT_NAME" ] || return 0
+    info "Git identity ($GIT_NAME <$GIT_EMAIL>)"
+    git config --global user.name "$GIT_NAME"
+    git config --global user.email "$GIT_EMAIL"
+    git config --global init.defaultBranch main
+    git config --global pull.rebase true
+    git config --global push.autoSetupRemote true
+
+    # A separate identity for work repos, so a personal email can't leak into them
+    if [ -n "$GIT_WORK_DIR" ] && [ -n "$GIT_WORK_EMAIL" ]; then
+        local work="$HOME/.gitconfig-work" dir="${GIT_WORK_DIR%/}/"
+        printf '[user]\n\temail = %s\n' "$GIT_WORK_EMAIL" >"$work"
+        git config --global "includeIf.gitdir:$dir.path" "$work"
+        echo "Repos under $dir will commit as <$GIT_WORK_EMAIL>"
+    fi
+}
+
+# The repo is public, so ~/.secrets is created empty and never copied out of it.
+# `secrets` (see .zshrc) unlocks it for an edit and re-locks it afterwards.
+ensure_secrets() {
+    [ -f "$HOME/.secrets" ] && return 0
+    info "Creating ~/.secrets (read-only; edit it with: secrets)"
+    printf '# Sourced by ~/.zshrc — API keys and tokens. Edit with: secrets\n' >"$HOME/.secrets"
+    chmod 400 "$HOME/.secrets"
+}
+
 backup_existing() {
-    local target="$1" new="$2"
+    local target="$1" new="$2" bak
     if [ -f "$target" ] && ! cmp -s "$new" "$target"; then
-        local bak="$target.bak.$(date +%Y%m%d-%H%M%S)"
+        bak="$target.bak.$(date +%Y%m%d-%H%M%S)"
         cp "$target" "$bak"
         echo "Existing $(basename "$target") backed up to $bak"
     fi
@@ -31,54 +169,46 @@ backup_existing() {
 
 install_oh_my_zsh() {
     info "Oh My Zsh + plugins"
-    if [ ! -d "$HOME/.oh-my-zsh" ]; then
-        RUNZSH=no CHSH=no KEEP_ZSHRC=yes \
-            sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
-    fi
-    ZSH_CUSTOM="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}"
-    [ -d "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting" ] || git clone --depth 1 https://github.com/zsh-users/zsh-syntax-highlighting.git "$ZSH_CUSTOM/plugins/zsh-syntax-highlighting"
-    [ -d "$ZSH_CUSTOM/plugins/zsh-autosuggestions" ]    || git clone --depth 1 https://github.com/zsh-users/zsh-autosuggestions.git "$ZSH_CUSTOM/plugins/zsh-autosuggestions"
+    [ -d "$HOME/.oh-my-zsh" ] || RUNZSH=no CHSH=no KEEP_ZSHRC=yes \
+        sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+    local custom="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}" plugin
+    for plugin in zsh-syntax-highlighting zsh-autosuggestions; do
+        [ -d "$custom/plugins/$plugin" ] || \
+            git clone --depth 1 "https://github.com/zsh-users/$plugin.git" "$custom/plugins/$plugin"
+    done
 }
 
 install_rust() {
     info "Rust (rustup)"
-    command -v cargo >/dev/null || curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    have cargo || curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
     [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
+    return 0
 }
 
-install_node() {
-    info "Node (nvm $NVM_VERSION)"
-    if [ ! -d "$HOME/.nvm" ]; then
-        curl -o- "https://raw.githubusercontent.com/nvm-sh/nvm/$NVM_VERSION/install.sh" | bash
+install_uv() {
+    info "uv (python packages + interpreters) and ty (type checker)"
+    have uv || curl -LsSf https://astral.sh/uv/install.sh | sh
+    export PATH="$HOME/.local/bin:$PATH"
+    have ty || uv tool install ty
+}
+
+# Node, Bun and Go come from mise, pinned by mise.toml, so every machine runs
+# the same versions and a project can pin its own. Python stays with uv and Rust
+# with rustup — mise's rust backend only drives rustup anyway.
+install_runtimes() {
+    if ! have mise; then
+        echo "mise is not installed — no runtimes installed." >&2
+        return 0
     fi
-    export NVM_DIR="$HOME/.nvm"
-    . "$NVM_DIR/nvm.sh"
-    command -v node >/dev/null || nvm install --lts
-}
-
-debian_rust_tools() {
-    info "Rust CLI tools (apt where available, cargo otherwise)"
-    command -v tldr >/dev/null     || sudo apt-get install -y tealdeer || cargo install --locked tealdeer
-    command -v tokei >/dev/null    || sudo apt-get install -y tokei    || cargo install --locked tokei
-    command -v atuin >/dev/null    || sudo apt-get install -y atuin    || cargo install --locked atuin
-    command -v gitui >/dev/null    || sudo apt-get install -y gitui    || cargo install --locked gitui
-    command -v zellij >/dev/null   || sudo apt-get install -y zellij   || cargo install --locked zellij
-    command -v topgrade >/dev/null || cargo install --locked topgrade
-    command -v yazi >/dev/null     || cargo install --locked yazi-fm yazi-cli
-}
-
-arch_topgrade() {
-    info "topgrade (AUR — not in official repos)"
-    command -v topgrade >/dev/null && return 0
-    if command -v paru >/dev/null; then paru -S --needed --noconfirm topgrade
-    elif command -v yay >/dev/null; then yay -S --needed --noconfirm topgrade
-    else cargo install --locked topgrade
-    fi
+    info "Runtimes (mise: node, bun, go)"
+    MISE_YES=1 mise install
+    # The rest of this script needs node: YouCompleteMe builds a JS completer.
+    export PATH="$HOME/.local/share/mise/shims:$PATH"
 }
 
 install_claude() {
     info "Claude Code"
-    command -v claude >/dev/null || curl -fsSL https://claude.ai/install.sh | bash
+    have claude || curl -fsSL https://claude.ai/install.sh | bash
 }
 
 github_auth() {
@@ -87,31 +217,27 @@ github_auth() {
 }
 
 install_dotfiles() {
-    local zshrc_src="$1"
-    info "Dotfiles (.zshrc, .vimrc, .secrets)"
-    backup_existing "$HOME/.zshrc" "$DOTFILES_DIR/$zshrc_src"
-    backup_existing "$HOME/.vimrc" "$DOTFILES_DIR/.vimrc"
-    cp "$DOTFILES_DIR/$zshrc_src" "$HOME/.zshrc"
-    cp "$DOTFILES_DIR/.vimrc" "$HOME/.vimrc"
-    mkdir -p "$HOME/.config"
-    cp "$DOTFILES_DIR/topgrade.toml" "$HOME/.config/topgrade.toml"
-    mkdir -p "$HOME/.config/zed"
-    backup_existing "$HOME/.config/zed/settings.json" "$DOTFILES_DIR/zed_settings.json"
-    backup_existing "$HOME/.config/zed/keymap.json" "$DOTFILES_DIR/zed_keymap.json"
-    cp "$DOTFILES_DIR/zed_settings.json" "$HOME/.config/zed/settings.json"
-    cp "$DOTFILES_DIR/zed_keymap.json" "$HOME/.config/zed/keymap.json"
-    if [ -f "$DOTFILES_DIR/.secrets" ]; then
-        cp "$DOTFILES_DIR/.secrets" "$HOME/.secrets"
-        chmod 600 "$HOME/.secrets"
-    else
-        echo "NOTE: $DOTFILES_DIR/.secrets not found — copy it to ~/.secrets manually (it is gitignored)."
-    fi
+    info "Dotfiles (.zshrc, .vimrc, zed, mise, topgrade, .secrets)"
+    mkdir -p "$HOME/.config/zed" "$HOME/.config/mise"
+    local pair src dst
+    for pair in "$1:$HOME/.zshrc" \
+                ".vimrc:$HOME/.vimrc" \
+                "topgrade.toml:$HOME/.config/topgrade.toml" \
+                "mise.toml:$HOME/.config/mise/config.toml" \
+                "zed_settings.json:$HOME/.config/zed/settings.json" \
+                "zed_keymap.json:$HOME/.config/zed/keymap.json"; do
+        src="$DOTFILES_DIR/${pair%%:*}" dst="${pair#*:}"
+        backup_existing "$dst" "$src"
+        cp "$src" "$dst"
+    done
+    ensure_secrets
 }
 
 setup_vim() {
     info "Vim plugins (Vundle) + YouCompleteMe"
-    [ -d "$HOME/.vim/bundle/Vundle.vim" ] || git clone --depth 1 https://github.com/VundleVim/Vundle.vim.git "$HOME/.vim/bundle/Vundle.vim"
-    vim -es -u "$HOME/.vimrc" +PluginInstall +qall || true
+    [ -d "$HOME/.vim/bundle/Vundle.vim" ] || \
+        git clone --depth 1 https://github.com/VundleVim/Vundle.vim.git "$HOME/.vim/bundle/Vundle.vim"
+    vim -es -u "$HOME/.vimrc" +PluginInstall +qall </dev/null || true
 
     local ycm="$HOME/.vim/bundle/YouCompleteMe"
     if [ -d "$ycm" ] && ! ls "$ycm"/third_party/ycmd/ycm_core*.so >/dev/null 2>&1; then
@@ -121,62 +247,96 @@ setup_vim() {
 }
 
 setup_neovim() {
+    # Skipped when a config already exists — including Omarchy's LazyVim
+    [ -d "$HOME/.config/nvim" ] && return 0
     info "Neovim config (kickstart.nvim: LSP, Telescope, Treesitter)"
-    if [ ! -d "$HOME/.config/nvim" ]; then
-        git clone https://github.com/nvim-lua/kickstart.nvim.git "$HOME/.config/nvim"
-        nvim --headless "+Lazy! sync" +qa || true
-    fi
+    git clone https://github.com/nvim-lua/kickstart.nvim.git "$HOME/.config/nvim"
+    nvim --headless "+Lazy! sync" +qa </dev/null || true
 }
 
 use_zsh() {
     info "Default shell -> zsh"
-    [ "$(basename "${SHELL:-}")" = "zsh" ] || chsh -s "$(command -v zsh)"
+    # via sudo, so it uses the cached credential instead of prompting again
+    [ "$(basename "${SHELL:-}")" = "zsh" ] || sudo chsh -s "$(command -v zsh)" "$USER"
 }
 
 gnome_tweaks() {
-    command -v gsettings >/dev/null || return 0
+    have gsettings || return 0
     info "GNOME tweaks"
     gsettings set org.gnome.desktop.wm.preferences button-layout 'close,minimize,maximize:' || true
     gsettings set org.gnome.shell.extensions.dash-to-dock show-trash true || true
     gsettings set org.gnome.Terminal.Legacy.Settings headerbar false || true
+    return 0
+}
+
+# Language toolchains every platform gets. Must run before the per-distro CLI
+# tool installs, which fall back to `cargo install`.
+common_toolchains() {
+    install_uv
+    install_rust
+}
+
+# ~/Developer is the macOS convention (Finder gives it a special icon) and both
+# .zshrc files put ~/Developer/bin on PATH, so keep the layout identical on Linux.
+setup_dev_dir() {
+    info "Development folder (~/Developer/bin)"
+    mkdir -p "$HOME/Developer/bin"
+}
+
+# Everything else that is identical on every platform. $1 = which .zshrc to install.
+common_stack() {
+    setup_dev_dir
+    configure_git
+    install_claude
+    install_oh_my_zsh
+    install_dotfiles "$1"
+    install_runtimes
+    setup_vim
+    setup_neovim
 }
 
 setup_macos() {
+    # The GUI installer runs detached, so wait for it — brew needs a compiler.
+    # This is the one step that can't be automated away; it is also the earliest.
     info "Xcode Command Line Tools"
-    xcode-select -p >/dev/null 2>&1 || xcode-select --install
+    if ! xcode-select -p >/dev/null 2>&1; then
+        xcode-select --install 2>/dev/null || true
+        echo "Accept the Command Line Tools dialog — waiting for it to finish..."
+        until xcode-select -p >/dev/null 2>&1; do sleep 10; done
+    fi
 
     info "Homebrew"
-    if ! command -v brew >/dev/null; then
-        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    fi
+    # NONINTERACTIVE, or the installer stops to ask for RETURN
+    have brew || NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
     eval "$(/opt/homebrew/bin/brew shellenv)"
 
     info "Brew packages"
-    brew install git gh macvim neovim btop thefuck fzf pyenv pyenv-virtualenv \
+    brew install git gh macvim neovim btop thefuck fzf mise \
         llvm sqlite libpq poppler ripgrep fd \
-        cmake go node mono openjdk \
+        cmake mono openjdk \
         fastfetch lazydocker bat gitui yazi zellij \
-        tealdeer tokei topgrade atuin pre-commit
+        tealdeer tokei topgrade atuin pre-commit uv \
+        awscli pipx macmon
 
-    sudo ln -sfn "$(brew --prefix)/opt/openjdk/libexec/openjdk.jdk" /Library/Java/JavaVirtualMachines/openjdk.jdk
-    export PATH="$(brew --prefix)/opt/openjdk/bin:$PATH"
+    local prefix
+    prefix="$(brew --prefix)"
+    sudo ln -sfn "$prefix/opt/openjdk/libexec/openjdk.jdk" /Library/Java/JavaVirtualMachines/openjdk.jdk
+    export PATH="$prefix/opt/openjdk/bin:$PATH"
 
-    info "Zed"
-    command -v zed >/dev/null || brew install --cask zed
-
-    info "iTerm2 + shell integration"
-    brew install --cask iterm2
-    [ -f "$HOME/.iterm2_shell_integration.zsh" ] || curl -fsSL https://iterm2.com/shell_integration/zsh -o "$HOME/.iterm2_shell_integration.zsh"
+    info "Casks (zed, iterm2, obsidian, helium, maccy)"
+    install_cask zed Zed
+    install_cask iterm2 iTerm
+    install_cask obsidian Obsidian
+    install_cask helium-browser Helium
+    install_cask maccy Maccy
+    [ -f "$HOME/.iterm2_shell_integration.zsh" ] || \
+        curl -fsSL https://iterm2.com/shell_integration/zsh -o "$HOME/.iterm2_shell_integration.zsh"
     if [ -f "$DOTFILES_DIR/iterm2.plist" ]; then
         defaults export com.googlecode.iterm2 "$HOME/.iterm2.plist.bak" 2>/dev/null || true
         defaults import com.googlecode.iterm2 "$DOTFILES_DIR/iterm2.plist"
     fi
 
-    info "Bun"
-    command -v bun >/dev/null || curl -fsSL https://bun.sh/install | bash
-
-    info "AWS + python tools (awscli, aws-mfa, virtualenvwrapper)"
-    brew install awscli pipx
+    info "python tools (aws-mfa, virtualenvwrapper)"
     pipx install aws-mfa || true
     pipx install virtualenvwrapper || true
 
@@ -186,49 +346,109 @@ setup_macos() {
     defaults write com.apple.dock show-recents -bool false
     killall Dock
 
-    install_rust
-    install_claude
-    install_oh_my_zsh
-    github_auth
-    install_dotfiles ".zshrc_arm64mac"
-    setup_vim
-    setup_neovim
+    common_toolchains
+    common_stack ".zshrc_arm64mac"
+}
+
+# Rust CLI tools: apt where the distro has them, cargo otherwise. "cmd:pkg", or
+# "pkg" when the command and the package share a name.
+debian_rust_tools() {
+    info "Rust CLI tools (apt where available, cargo otherwise)"
+    local t cmd pkg
+    for t in tldr:tealdeer tokei atuin gitui zellij; do
+        cmd="${t%%:*}" pkg="${t##*:}"
+        have "$cmd" || apt_get install "$pkg" || cargo install --locked "$pkg"
+    done
+    have topgrade || cargo install --locked topgrade
+    have yazi || cargo install --locked yazi-fm yazi-cli
+    return 0
+}
+
+# Omarchy already has clipboard history: SUPER CTRL + V opens walker's clipboard
+# module. A second watcher there would record every copy twice.
+#
+# Ringboard is Rust and covers both session types. Its own installer picks the
+# X11 or the Wayland watcher, writes the systemd user units, and rewrites them
+# for cargo's bin path — including the fallback for Wayland compositors without
+# ext_data_control_manager_v1. Needs cargo, so call this after common_toolchains.
+install_clipboard_history() {
+    if is_omarchy; then
+        echo "Omarchy supplies clipboard history (SUPER CTRL + V) — skipping Ringboard."
+        return 0
+    fi
+    case "${XDG_SESSION_TYPE:-}" in
+    x11 | wayland) ;;
+    *) echo "No graphical session — skipping the clipboard manager." >&2; return 0 ;;
+    esac
+    have ringboard-server && return 0
+
+    info "Clipboard history (Ringboard)"
+    curl -sSfL https://raw.githubusercontent.com/SUPERCILEX/clipboard-history/master/install-with-cargo-systemd.sh |
+        bash || echo "Ringboard install failed — see https://github.com/SUPERCILEX/clipboard-history" >&2
+    return 0
+}
+
+# LACT's GUI talks to lactd over a socket, so the daemon has to be running
+enable_lactd() {
+    have lact || return 0
+    info "LACT daemon"
+    sudo systemctl enable --now lactd || true
 }
 
 setup_debian() {
     info "APT packages"
-    sudo apt-get update
-    sudo apt-get install -y zsh git curl wget gpg xclip vim-nox btop \
+    apt_get update
+    apt_get install zsh git curl wget gpg xclip vim-nox btop \
         build-essential cmake clang llvm libssl-dev libclang-dev libpq-dev \
         python3-dev python3-pip python3-setuptools pipx virtualenvwrapper \
-        mono-complete golang default-jdk vlc dconf-editor ripgrep fd-find \
-        xxd bat wl-clipboard xdg-utils pre-commit
-    sudo apt-get install -y thefuck || pipx install thefuck
-    sudo apt-get install -y fastfetch || echo "fastfetch not in repos, skipping"
+        mono-complete default-jdk vlc dconf-editor ripgrep fd-find \
+        xxd bat wl-clipboard xdg-utils pre-commit jq lsb-release
+    apt_get install thefuck || pipx install thefuck
+    apt_get install fastfetch || echo "fastfetch not in repos, skipping"
+
+    # Debian ships these under different binary names
     mkdir -p "$HOME/.local/bin"
-    ln -sf "$(command -v fdfind)" "$HOME/.local/bin/fd"
-    ln -sf "$(command -v batcat)" "$HOME/.local/bin/bat"
+    have fdfind && ln -sf "$(command -v fdfind)" "$HOME/.local/bin/fd"
+    have batcat && ln -sf "$(command -v batcat)" "$HOME/.local/bin/bat"
 
     info "GitHub CLI (official apt repo)"
-    if ! command -v gh >/dev/null; then
+    if ! have gh; then
         sudo mkdir -p -m 755 /etc/apt/keyrings
         curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null
         sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
         echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
-        sudo apt-get update && sudo apt-get install -y gh
+        apt_get update && apt_get install gh
+    fi
+
+    # extrepo is Debian's own mechanism for third-party repositories and keeps
+    # the key out of our hands. Not every release carries a mise recipe, so fall
+    # back to mise's apt repository.
+    info "mise (apt repo)"
+    if ! have mise; then
+        if apt_get install extrepo && sudo extrepo enable mise; then
+            apt_get update
+        else
+            sudo install -dm 755 /etc/apt/keyrings
+            curl -fsSL https://mise.jdx.dev/gpg-key.pub |
+                sudo gpg --dearmor -o /etc/apt/keyrings/mise-archive-keyring.gpg
+            echo "deb [signed-by=/etc/apt/keyrings/mise-archive-keyring.gpg arch=$(dpkg --print-architecture)] https://mise.jdx.dev/deb stable main" |
+                sudo tee /etc/apt/sources.list.d/mise.list >/dev/null
+            apt_get update
+        fi
+        apt_get install mise
     fi
 
     info "lazydocker (no apt package — official install script, lands in ~/.local/bin)"
-    command -v lazydocker >/dev/null || curl -fsSL https://raw.githubusercontent.com/jesseduffield/lazydocker/master/scripts/install_update_linux.sh | bash
+    have lazydocker || curl -fsSL https://raw.githubusercontent.com/jesseduffield/lazydocker/master/scripts/install_update_linux.sh | bash
 
     info "Zed (official installer — lands in ~/.local)"
-    command -v zed >/dev/null || curl -f https://zed.dev/install.sh | sh
+    have zed || curl -f https://zed.dev/install.sh | sh
 
     info "Ghostty (no official apt package — snap is the maintained route)"
-    command -v ghostty >/dev/null || sudo snap install ghostty --classic || echo "ghostty: snap unavailable, install manually"
+    have ghostty || sudo snap install ghostty --classic || echo "ghostty: snap unavailable, install manually"
 
     info "Neovim (latest, official tarball — apt version is too old for kickstart)"
-    if ! command -v nvim >/dev/null; then
+    if ! have nvim; then
         curl -fsSL -o /tmp/nvim.tar.gz https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz
         sudo tar -C /opt -xzf /tmp/nvim.tar.gz && rm /tmp/nvim.tar.gz
         ln -sf /opt/nvim-linux-x86_64/bin/nvim "$HOME/.local/bin/nvim"
@@ -241,80 +461,167 @@ setup_debian() {
         ln -sf "$HOME/.fzf/bin/fzf" "$HOME/.local/bin/fzf"
     fi
 
+    info "Helium browser (official apt repo, so apt keeps it updated)"
+    if [ ! -f /etc/apt/sources.list.d/helium.list ]; then
+        sudo mkdir -p /usr/share/keyrings
+        curl -fsSL https://raw.githubusercontent.com/imputnet/helium-linux/main/pubkey.asc |
+            sudo gpg --dearmor -o /usr/share/keyrings/helium.gpg
+        echo "deb [arch=amd64,arm64 signed-by=/usr/share/keyrings/helium.gpg] https://pkg.helium.computer/deb stable main" |
+            sudo tee /etc/apt/sources.list.d/helium.list >/dev/null
+        apt_get update
+    fi
+    apt_get install helium-bin
+
+    # Obsidian and LACT publish no apt repo, and a hand-installed .deb never sees
+    # an update. deb-get tracks their GitHub releases and installs real .debs
+    # through dpkg — still apt, nothing sandboxed — and topgrade has a native
+    # deb-get step, so `update` picks up new versions with no extra wiring.
+    info "deb-get"
+    if ! have deb-get; then
+        curl -sL https://raw.githubusercontent.com/wimpysworld/deb-get/main/deb-get |
+            sudo DEBIAN_FRONTEND=noninteractive bash -s install deb-get
+    fi
+
+    info "Obsidian + LACT (deb-get)"
+    sudo DEBIAN_FRONTEND=noninteractive deb-get install obsidian lact
+
+    enable_lactd
+
+    info "nvtop on NVIDIA"
+    has_nvidia && { have nvtop || apt_get install nvtop; }
+
     info "Docker (engine + compose plugin)"
-    if ! command -v docker >/dev/null; then
+    if ! have docker; then
         curl -fsSL https://get.docker.com | sh
         sudo usermod -aG docker "$USER"
     fi
 
     info "PostgreSQL (official pgdg repo)"
-    if ! command -v psql >/dev/null; then
-        sudo apt-get install -y postgresql-common
+    if ! have psql; then
+        apt_get install postgresql-common
         sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
-        sudo apt-get install -y postgresql
+        apt_get install postgresql
     fi
 
     gnome_tweaks
-    install_rust
+    common_toolchains
+    install_clipboard_history
     debian_rust_tools
-    install_node
-    install_claude
-    install_oh_my_zsh
-    github_auth
-    install_dotfiles ".zshrc_x86linux"
-    setup_vim
-    setup_neovim
+    common_stack ".zshrc_x86linux"
     use_zsh
 }
 
+# yay is preinstalled on Omarchy; paru ships with some CachyOS installs
+arch_aur() {
+    local helper
+    for helper in yay paru; do
+        have "$helper" && {
+            "$helper" -S --needed --noconfirm \
+                --answerclean None --answerdiff None --answeredit None "$@"
+            return
+        }
+    done
+    echo "No AUR helper (yay/paru) found — skipping: $*" >&2
+    return 1
+}
+
+# `omarchy-update-perform` runs migrations and *then* `omarchy-hook post-update`,
+# and migrations do re-add apps (cliamp and spotify both arrived that way), so
+# re-apply the debloat from the hook. Delete
+# ~/.config/omarchy/hooks/post-update.d/dotfiles-debloat to stop it.
+install_debloat_hook() {
+    have omarchy-hook-install || return 0
+    info "Omarchy post-update hook (re-applies the debloat)"
+    local dir
+    dir="$(mktemp -d)"
+    cat >"$dir/dotfiles-debloat" <<EOF
+#!/bin/bash
+# Installed by $DOTFILES_DIR/setup.sh
+[ -x "$DOTFILES_DIR/omarchy-debloat.sh" ] && "$DOTFILES_DIR/omarchy-debloat.sh" --yes
+EOF
+    omarchy-hook-install post-update "$dir/dotfiles-debloat"
+    rm -rf "$dir"
+}
+
 setup_arch() {
+    local dgroups=()
+    local pkgs=(
+        zsh git curl wget xclip wl-clipboard xdg-utils vim neovim zed
+        btop fastfetch base-devel cmake clang llvm openssl postgresql-libs
+        python python-pip python-pipx
+        mono jdk-openjdk mise
+        github-cli fzf thefuck ripgrep fd ghostty
+        lazydocker bat gitui yazi zellij tealdeer tokei atuin uv
+        docker docker-compose postgresql pre-commit obsidian lact
+    )
+    has_nvidia && pkgs+=(nvtop)
+
+    if is_omarchy; then
+        info "Omarchy detected — keeping its Hyprland desktop, mpv/nautilus stack and yay"
+        if ((DEBLOAT == 0)); then
+            echo "Skipping the debloat pass (--no-debloat)."
+        elif [ -x "$DOTFILES_DIR/omarchy-debloat.sh" ]; then
+            case "$DEBLOAT_GROUPS" in
+            skip) echo "Keeping Omarchy's preinstalled apps." ;;
+            default) "$DOTFILES_DIR/omarchy-debloat.sh" --yes ;;
+            all) "$DOTFILES_DIR/omarchy-debloat.sh" --yes --all ;;
+            *)
+                read -r -a dgroups <<<"$DEBLOAT_GROUPS"
+                "$DOTFILES_DIR/omarchy-debloat.sh" --yes "${dgroups[@]}" ;;
+            esac
+            [ "$DEBLOAT_GROUPS" = skip ] || install_debloat_hook
+        fi
+    else
+        # GNOME/X11-era extras that make no sense next to Hyprland
+        pkgs+=(vlc dconf-editor)
+    fi
+
     info "Pacman packages"
-    sudo pacman -Syu --needed --noconfirm zsh git curl wget xclip wl-clipboard xdg-utils vim neovim zed \
-        btop fastfetch base-devel cmake clang llvm openssl postgresql-libs \
-        python python-pip python-pipx python-virtualenvwrapper \
-        mono go jdk-openjdk vlc dconf-editor \
-        github-cli fzf thefuck ripgrep fd ghostty \
-        lazydocker bat gitui yazi zellij tealdeer tokei atuin \
-        docker docker-compose postgresql pre-commit
+    sudo pacman -Syu --needed --noconfirm "${pkgs[@]}"
+
+    # python-virtualenvwrapper is AUR-only; pipx keeps it out of the pacman transaction
+    info "virtualenvwrapper (pipx — not in the official repos)"
+    pipx install virtualenvwrapper || true
+
+    info "Helium browser (AUR)"
+    have helium-browser || have helium || arch_aur helium-browser-bin
+
+    enable_lactd
 
     info "Docker group"
     sudo usermod -aG docker "$USER"
 
     info "PostgreSQL init"
-    if ! sudo test -f /var/lib/postgres/data/PG_VERSION; then
-        sudo -u postgres initdb -D /var/lib/postgres/data
-    fi
+    sudo test -f /var/lib/postgres/data/PG_VERSION || sudo -u postgres initdb -D /var/lib/postgres/data
 
-    if is_omarchy; then
-        info "Omarchy detected — skipping GNOME tweaks & Neovim config (Hyprland/LazyVim managed by Omarchy)"
-    else
-        gnome_tweaks
-    fi
-    install_rust
-    arch_topgrade
-    install_node
-    install_claude
-    install_oh_my_zsh
-    github_auth
-    install_dotfiles ".zshrc_x86linux"
-    setup_vim
-    is_omarchy || setup_neovim
+    is_omarchy || gnome_tweaks
+    common_toolchains
+    install_clipboard_history
+    info "topgrade (AUR — not in the official repos)"
+    have topgrade || arch_aur topgrade || cargo install --locked topgrade
+    common_stack ".zshrc_x86linux"
     use_zsh
 }
 
+collect_inputs
+sudo_keepalive
+
 case "$(uname -s)" in
-    Darwin) setup_macos ;;
-    Linux)
-        if command -v pacman >/dev/null; then setup_arch
-        elif command -v apt-get >/dev/null; then setup_debian
-        else echo "Unsupported Linux distro (no pacman/apt)" >&2; exit 1
-        fi ;;
-    *) echo "Unsupported OS: $(uname -s)" >&2; exit 1 ;;
+Darwin) setup_macos ;;
+Linux)
+    if have pacman; then setup_arch
+    elif have apt-get; then setup_debian
+    else echo "Unsupported Linux distro (no pacman/apt)" >&2; exit 1
+    fi ;;
+*) echo "Unsupported OS: $(uname -s)" >&2; exit 1 ;;
 esac
 
-if command -v topgrade >/dev/null; then
+if have topgrade; then
     info "Upgrading existing packages (topgrade)"
     topgrade -y || true
 fi
+
+# Last, and the only thing that can block after the questions
+[ "$AUTH_GH" = yes ] && github_auth
 
 info "Done. Restart your terminal (or run: exec zsh)"
