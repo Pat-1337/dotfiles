@@ -256,15 +256,16 @@ github_auth() {
 }
 
 install_dotfiles() {
-    info "Dotfiles (.zshrc, .vimrc, zed, mise, topgrade, .secrets)"
-    mkdir -p "$HOME/.config/zed" "$HOME/.config/mise"
+    info "Dotfiles (.zshrc, .vimrc, zed, helix, mise, topgrade, .secrets)"
+    mkdir -p "$HOME/.config/zed" "$HOME/.config/helix" "$HOME/.config/mise"
     local pair src dst
     for pair in "$1:$HOME/.zshrc" \
                 ".vimrc:$HOME/.vimrc" \
                 "topgrade.toml:$HOME/.config/topgrade.toml" \
                 "mise.toml:$HOME/.config/mise/config.toml" \
                 "zed_settings.json:$HOME/.config/zed/settings.json" \
-                "zed_keymap.json:$HOME/.config/zed/keymap.json"; do
+                "zed_keymap.json:$HOME/.config/zed/keymap.json" \
+                "helix_languages.toml:$HOME/.config/helix/languages.toml"; do
         src="$DOTFILES_DIR/${pair%%:*}" dst="${pair#*:}"
         backup_existing "$dst" "$src"
         cp "$src" "$dst"
@@ -350,7 +351,7 @@ setup_macos() {
     eval "$(/opt/homebrew/bin/brew shellenv)"
 
     info "Brew packages"
-    brew install git gh macvim neovim btop thefuck fzf mise \
+    brew install git gh macvim neovim helix btop thefuck fzf mise \
         llvm sqlite libpq poppler ripgrep fd \
         cmake mono openjdk \
         fastfetch lazydocker bat gitui yazi zellij \
@@ -444,6 +445,8 @@ setup_debian() {
         xxd bat wl-clipboard xdg-utils pre-commit jq lsb-release
     apt_get install thefuck || pipx install thefuck
     apt_get install fastfetch || echo "fastfetch not in repos, skipping"
+    # A cargo build of helix ships no runtime directory, so it has no grammars
+    apt_get install helix || echo "helix not in repos, skipping"
 
     # Debian ships these under different binary names
     mkdir -p "$HOME/.local/bin"
@@ -585,7 +588,7 @@ EOF
 setup_arch() {
     local dgroups=()
     local pkgs=(
-        zsh git curl wget xclip wl-clipboard xdg-utils vim neovim zed
+        zsh git curl wget xclip wl-clipboard xdg-utils vim neovim helix zed
         btop fastfetch base-devel cmake clang llvm openssl postgresql-libs
         python python-pip python-pipx
         mono jdk-openjdk mise

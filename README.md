@@ -73,6 +73,7 @@ is then available on all of your machines.
 | `topgrade.toml` | `~/.config/topgrade.toml` |
 | `mise.toml` | `~/.config/mise/config.toml` |
 | `zed_settings.json` and `zed_keymap.json` | `~/.config/zed/` |
+| `helix_languages.toml` | `~/.config/helix/languages.toml` |
 | `iterm2.plist` | iTerm2 preferences (macOS) |
 
 ## Secrets
@@ -180,7 +181,7 @@ The script installs these tools on all three systems:
 
 - Version managers: mise, uv with the ty type checker, and rustup.
 - Shell: Oh My Zsh with the syntax-highlight and autosuggestion plugins.
-- Editors: Vundle with YouCompleteMe, and kickstart.nvim.
+- Editors: Helix, Vundle with YouCompleteMe, and kickstart.nvim.
 - Agent and version control: Claude Code and gh.
 - Services: Docker and PostgreSQL.
 - Command line tools: ripgrep, fd, bat, fzf, atuin, zellij, yazi, gitui,
@@ -273,13 +274,16 @@ before it installs the packages.
 
 Three tools control the runtimes. Each one holds a different part:
 
-- mise installs Node, Bun, and Go. The `mise.toml` file in this repository
+- mise installs Node, pnpm, Bun, and Go. The `mise.toml` file in this repository
   holds the versions. All machines then run the same versions.
 - uv installs Python and Python packages.
 - rustup installs Rust.
 
 A project can hold its own `mise.toml` file. The versions in that file are then
 correct for the project only.
+
+mise installs pnpm as its own tool. corepack and `npm -g` both write pnpm into
+the Node installation, so the next Node version deletes it.
 
 mise does not control Python here, because uv does that work. mise does not
 control Rust, because its Rust support only operates rustup. mise does not

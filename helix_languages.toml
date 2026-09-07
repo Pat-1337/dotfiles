@@ -1,0 +1,6 @@
+# Helix 25.07.1 pins the gotmpl grammar to dannylongeuay/tree-sitter-go-template,
+# which is deleted, so `hx --grammar fetch` fails. Upstream moved to ngalaiko.
+# Delete this block once the release carries the new source.
+[[grammar]]
+name = "gotmpl"
+source = { git = "https://github.com/ngalaiko/tree-sitter-go-template", rev = "aa71f63de226c5592dfbfc1f29949522d7c95fac" }
