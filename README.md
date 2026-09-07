@@ -30,12 +30,14 @@ not already on the machine:
 On a machine with a git identity and an authenticated `gh`, the script asks
 nothing. It shows a summary and starts at once.
 
-The script asks for the sudo password one time. A background loop keeps the
-sudo credential valid. No later step stops for input.
+On Linux the script asks for the sudo password one time. A background loop
+keeps the sudo credential valid. No later step stops for input.
 
-macOS asks a second time. Every `brew` command runs `sudo --reset-timestamp`,
-which deletes the cached credential, so the steps after Homebrew must ask again.
-The script asks only when the credential is really gone.
+macOS asks at most one time, and asks nothing on a repeat run. The script needs
+root for one step only: the Java symlink in `/Library/Java/JavaVirtualMachines`. It
+skips that step when the symlink is already correct. It also asks nothing up
+front, because every `brew` command runs `sudo --reset-timestamp`, and Homebrew
+always runs first.
 
 Each package manager runs in its silent mode:
 

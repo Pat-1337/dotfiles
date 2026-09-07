@@ -164,7 +164,12 @@ Press Enter to start, Ctrl-C to abort. " </dev/tty
 # One password prompt, refreshed in the background, so no step blocks later on.
 # The parent process drives the loop. A failed refresh must not end it, because
 # the credential can come back — see resudo.
+#
+# macOS gets no prompt here. Homebrew always runs before the one sudo call the
+# platform makes, and it deletes the credential, so priming it now only asks for
+# a password that nothing can use. resudo asks at the point of use instead.
 sudo_keepalive() {
+    [ "$(uname -s)" = Darwin ] && return 0
     info "Asking for sudo once"
     sudo -v || exit 1
     ( while kill -0 "$$" 2>/dev/null; do sudo -n true 2>/dev/null; sleep 50; done ) &
@@ -366,10 +371,15 @@ setup_macos() {
         tealdeer tokei topgrade atuin pre-commit uv \
         awscli pipx macmon
 
-    local prefix
+    local prefix jdk link
     prefix="$(brew --prefix)"
-    resudo
-    sudo ln -sfn "$prefix/opt/openjdk/libexec/openjdk.jdk" /Library/Java/JavaVirtualMachines/openjdk.jdk
+    jdk="$prefix/opt/openjdk/libexec/openjdk.jdk"
+    link=/Library/Java/JavaVirtualMachines/openjdk.jdk
+    if [ "$(readlink "$link" 2>/dev/null)" != "$jdk" ]; then
+        info "Java symlink (the only step on macOS that needs root)"
+        resudo
+        sudo ln -sfn "$jdk" "$link"
+    fi
     export PATH="$prefix/opt/openjdk/bin:$PATH"
 
     info "Casks (zed, iterm2, obsidian, helium, maccy)"
