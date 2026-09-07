@@ -65,6 +65,11 @@ alias quar='xattr -d com.apple.quarantine'
 alias deletebranches='git branch | grep -v "dev" | grep -v "master" | xargs git branch -D'
 alias ccat='bat'
 
+# Docker: reclaim disk. Removes all unused images, stopped containers, unused
+# networks and the build cache. Volumes stay: database data lives there.
+# To delete volumes too, run: docker system prune -af --volumes
+alias dprune='docker system df && docker system prune -af && docker system df'
+
 # 0x0.st
 0x0() { curl -F "file=@$1" https://0x0.st; }
 
