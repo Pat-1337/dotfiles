@@ -161,14 +161,20 @@ Press Enter to start, Ctrl-C to abort. " </dev/tty
     fi
 }
 
-# One password prompt, refreshed in the background, so no step blocks later on
+# One password prompt, refreshed in the background, so no step blocks later on.
+# The parent process drives the loop. A failed refresh must not end it, because
+# the credential can come back — see resudo.
 sudo_keepalive() {
     info "Asking for sudo once"
     sudo -v || exit 1
-    ( while sudo -n true 2>/dev/null; do sleep 50; kill -0 "$$" 2>/dev/null || break; done ) &
+    ( while kill -0 "$$" 2>/dev/null; do sudo -n true 2>/dev/null; sleep 50; done ) &
     SUDO_PID=$!
     trap 'kill "$SUDO_PID" 2>/dev/null' EXIT
 }
+
+# Homebrew runs `sudo --reset-timestamp` on every brew command, so the cached
+# credential never survives one. Ask again, and only when it is really gone.
+resudo() { sudo -n true 2>/dev/null || sudo -v; }
 
 configure_git() {
     [ -n "$GIT_NAME" ] || return 0
@@ -296,8 +302,10 @@ setup_neovim() {
 
 use_zsh() {
     info "Default shell -> zsh"
-    # via sudo, so it uses the cached credential instead of prompting again
-    [ "$(basename "${SHELL:-}")" = "zsh" ] || sudo chsh -s "$(command -v zsh)" "$USER"
+    if [ "$(basename "${SHELL:-}")" != "zsh" ]; then
+        resudo
+        sudo chsh -s "$(command -v zsh)" "$USER"
+    fi
 }
 
 gnome_tweaks() {
@@ -360,6 +368,7 @@ setup_macos() {
 
     local prefix
     prefix="$(brew --prefix)"
+    resudo
     sudo ln -sfn "$prefix/opt/openjdk/libexec/openjdk.jdk" /Library/Java/JavaVirtualMachines/openjdk.jdk
     export PATH="$prefix/opt/openjdk/bin:$PATH"
 

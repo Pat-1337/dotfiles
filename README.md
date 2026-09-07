@@ -33,6 +33,10 @@ nothing. It shows a summary and starts at once.
 The script asks for the sudo password one time. A background loop keeps the
 sudo credential valid. No later step stops for input.
 
+macOS asks a second time. Every `brew` command runs `sudo --reset-timestamp`,
+which deletes the cached credential, so the steps after Homebrew must ask again.
+The script asks only when the credential is really gone.
+
 Each package manager runs in its silent mode:
 
 - `DEBIAN_FRONTEND=noninteractive` and the two `--force-conf` options for apt.
