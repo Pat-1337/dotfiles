@@ -16,12 +16,19 @@ cd ~/Developer/dotfiles
 To keep the Omarchy preinstalled apps, add the `--no-debloat` option.
 
 The script asks all questions in the first seconds. Then the installation
-continues with no more input from you. The script asks for these items:
+continues with no more input from you. It asks only for the answers that are
+not already on the machine:
 
-- The git author name and the git author email.
-- A directory for work repositories, if you want a second git identity.
+- The git author name and the git author email, but only if `~/.gitconfig`
+  holds no identity.
+- A directory for work repositories, if you want a second git identity. The
+  script offers this only with the first git setup, and only if no `includeIf`
+  rule is present. To add one later, set `GIT_WORK_DIR` and `GIT_WORK_EMAIL`.
 - The package groups to remove, but only on an Omarchy system.
 - A GitHub login, but only if `gh` is not authenticated.
+
+On a machine with a git identity and an authenticated `gh`, the script asks
+nothing. It shows a summary and starts at once.
 
 The script asks for the sudo password one time. A background loop keeps the
 sudo credential valid. No later step stops for input.
@@ -47,8 +54,9 @@ your git identity and writes it to `~/.gitconfig`. If you give a directory for
 work repositories, the script writes a second identity for it with `includeIf`.
 Your personal email address then stays out of your work commits.
 
-To skip a question, set its variable in the environment: `GIT_NAME`,
-`GIT_EMAIL`, `GIT_WORK_DIR`, `GIT_WORK_EMAIL`, `DEBLOAT_GROUPS`, or `AUTH_GH`.
+To change an answer that the script keeps, use the `git config` command. You
+can also set the variable in the environment: `GIT_NAME`, `GIT_EMAIL`,
+`GIT_WORK_DIR`, `GIT_WORK_EMAIL`, `DEBLOAT_GROUPS`, or `AUTH_GH`.
 To skip all questions, close the standard input: `./setup.sh </dev/null`. The
 script then keeps the git identity that is already in the configuration.
 

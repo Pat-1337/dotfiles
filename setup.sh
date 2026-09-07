@@ -8,10 +8,11 @@
 ### and walk away. Nothing personal is stored in this repo: the git identity is
 ### prompted for and written to ~/.gitconfig, and ~/.secrets never leaves $HOME.
 ###
-### Non-interactive (CI, or a re-run): pipe from /dev/null and it keeps whatever
-### git identity is already configured. GIT_NAME, GIT_EMAIL, GIT_WORK_DIR,
-### GIT_WORK_EMAIL, DEBLOAT_GROUPS and AUTH_GH can all be preset in the
-### environment to skip the matching prompt.
+### A question is skipped when the answer is already on the machine: a git
+### identity in ~/.gitconfig, an includeIf rule for work repos, or an
+### authenticated gh. To change one of those, edit it with git config, or preset
+### GIT_NAME, GIT_EMAIL, GIT_WORK_DIR, GIT_WORK_EMAIL, DEBLOAT_GROUPS or
+### AUTH_GH in the environment. Pipe from /dev/null to skip every question.
 ###
 ### On Omarchy, ./omarchy-debloat.sh runs first — it strips the preinstalled app
 ### layer (see that script's --help for the groups) so this script installs the
@@ -70,6 +71,13 @@ if [ "$(id -u)" -eq 0 ]; then
 fi
 
 ### Everything interactive lives here — the rest of the run must not block.
+### A question is only asked when its answer is not already on the machine.
+
+# A previous run, or the user, may already have an includeIf rule for work repos
+has_git_work_identity() {
+    git config --global --name-only --get-regexp '^includeIf\.gitdir' >/dev/null 2>&1
+}
+
 collect_inputs() {
     GIT_NAME="${GIT_NAME:-$(git config --global user.name 2>/dev/null)}"
     GIT_EMAIL="${GIT_EMAIL:-$(git config --global user.email 2>/dev/null)}"
@@ -78,48 +86,79 @@ collect_inputs() {
     DEBLOAT_GROUPS="${DEBLOAT_GROUPS:-default}"
     AUTH_GH="${AUTH_GH:-ask}"
 
+    # gh is usually already authenticated: cloning this repo needed it
+    if [ "$AUTH_GH" = ask ] && have gh && gh auth status >/dev/null 2>&1; then
+        AUTH_GH=authed
+    fi
+
     if [ ! -t 0 ]; then
         info "Non-interactive — keeping the existing git identity and default groups"
-        if [ "$AUTH_GH" = ask ]; then
-            AUTH_GH=no
-            have gh && gh auth status >/dev/null 2>&1 && AUTH_GH=authed
-        fi
+        [ "$AUTH_GH" = ask ] && AUTH_GH=no
         return 0
     fi
 
-    info "Setup questions (everything after this runs unattended)"
-    GIT_NAME="$(ask "Git author name" "$GIT_NAME")"
-    GIT_EMAIL="$(ask "Git author email" "$GIT_EMAIL")"
-    GIT_WORK_DIR="$(ask "Directory for work repos, for a separate git identity (blank to skip)" "$GIT_WORK_DIR")"
-    [ -n "$GIT_WORK_DIR" ] && GIT_WORK_EMAIL="$(ask "Git email inside $GIT_WORK_DIR" "$GIT_WORK_EMAIL")"
+    # Work out what is missing before printing anything, so a fully configured
+    # machine shows no questions at all.
+    local ask_identity=0 ask_work=0 ask_debloat=0 ask_gh=0
+    { [ -n "$GIT_NAME" ] && [ -n "$GIT_EMAIL" ]; } || ask_identity=1
 
-    if is_omarchy && ((DEBLOAT)); then
+    # The work identity has nothing to remember when it is declined, so only
+    # offer it during first-time git setup. Otherwise it would ask on every run.
+    if [ -n "$GIT_WORK_DIR" ]; then
+        [ -z "$GIT_WORK_EMAIL" ] && ask_work=1
+    elif ((ask_identity)) && ! has_git_work_identity; then
+        ask_work=1
+    fi
+
+    is_omarchy && ((DEBLOAT)) && ask_debloat=1
+    [ "$AUTH_GH" = ask ] && ask_gh=1
+
+    if ((ask_identity || ask_work || ask_debloat || ask_gh)); then
+        info "Setup questions (everything after this runs unattended)"
+    fi
+
+    if ((ask_identity)); then
+        GIT_NAME="$(ask "Git author name" "$GIT_NAME")"
+        GIT_EMAIL="$(ask "Git author email" "$GIT_EMAIL")"
+    fi
+
+    if ((ask_work)); then
+        [ -n "$GIT_WORK_DIR" ] ||
+            GIT_WORK_DIR="$(ask "Directory for work repos, for a separate git identity (blank to skip)")"
+        [ -n "$GIT_WORK_DIR" ] && [ -z "$GIT_WORK_EMAIL" ] &&
+            GIT_WORK_EMAIL="$(ask "Git email inside $GIT_WORK_DIR")"
+    fi
+
+    if ((ask_debloat)); then
         echo "Omarchy debloat: 'default' (apps webapps agents), 'all', 'skip', or a group list."
         DEBLOAT_GROUPS="$(ask "Debloat groups" "$DEBLOAT_GROUPS")"
     fi
 
-    # Already logged in (likely, since cloning this repo needed it) — don't ask
-    if [ "$AUTH_GH" = ask ]; then
-        if have gh && gh auth status >/dev/null 2>&1; then
-            AUTH_GH=authed
-        else
-            case "$(ask "Log in to GitHub at the end? Needs a browser (y/n)" y)" in
-            [yY]*) AUTH_GH=yes ;;
-            *) AUTH_GH=no ;;
-            esac
-        fi
+    if ((ask_gh)); then
+        case "$(ask "Log in to GitHub at the end? Needs a browser (y/n)" y)" in
+        [yY]*) AUTH_GH=yes ;;
+        *) AUTH_GH=no ;;
+        esac
     fi
 
     echo
     echo "  git identity   : ${GIT_NAME:-<unset>} <${GIT_EMAIL:-unset}>"
-    [ -n "$GIT_WORK_DIR" ] && echo "  work identity  : <$GIT_WORK_EMAIL> inside $GIT_WORK_DIR"
+    if [ -n "$GIT_WORK_DIR" ]; then
+        echo "  work identity  : <$GIT_WORK_EMAIL> inside $GIT_WORK_DIR"
+    elif has_git_work_identity; then
+        echo "  work identity  : already configured"
+    fi
     is_omarchy && ((DEBLOAT)) && echo "  omarchy debloat: $DEBLOAT_GROUPS"
     case "$AUTH_GH" in
     authed) echo "  github login   : already authenticated" ;;
     *) echo "  github login   : $AUTH_GH" ;;
     esac
-    read -r -p "
+
+    # Nothing was asked, so nothing needs confirming — do not block the run
+    if ((ask_identity || ask_work || ask_debloat || ask_gh)); then
+        read -r -p "
 Press Enter to start, Ctrl-C to abort. " </dev/tty
+    fi
 }
 
 # One password prompt, refreshed in the background, so no step blocks later on
