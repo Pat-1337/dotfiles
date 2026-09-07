@@ -29,6 +29,9 @@
   "performance": {
     "show_in_status_bar": true
   },
+  "terminal": {
+    "detect_venv": "off"
+  },
   "icon_theme": {
     "mode": "light",
     "light": "Zed (Default)",

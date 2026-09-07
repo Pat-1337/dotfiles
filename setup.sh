@@ -231,7 +231,7 @@ install_uv() {
     have ty || uv tool install ty
 }
 
-# Node, Bun and Go come from mise, pinned by mise.toml, so every machine runs
+# Node, pnpm, Bun and Go come from mise, pinned by mise.toml, so every machine runs
 # the same versions and a project can pin its own. Python stays with uv and Rust
 # with rustup — mise's rust backend only drives rustup anyway.
 install_runtimes() {
@@ -239,7 +239,7 @@ install_runtimes() {
         echo "mise is not installed — no runtimes installed." >&2
         return 0
     fi
-    info "Runtimes (mise: node, bun, go)"
+    info "Runtimes (mise: node, pnpm, bun, go)"
     MISE_YES=1 mise install
     # The rest of this script needs node: YouCompleteMe builds a JS completer.
     export PATH="$HOME/.local/share/mise/shims:$PATH"

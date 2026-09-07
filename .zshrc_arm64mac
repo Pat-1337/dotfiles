@@ -19,6 +19,10 @@ path=(
   /Applications/Obsidian.app/Contents/MacOS
 )
 
+# pnpm keeps its global binaries outside the node install
+export PNPM_HOME="$HOME/Library/pnpm"
+path=($PNPM_HOME/bin $path)
+
 # Prompt for non-omz
 export PS1="%m:%~ %n λ "
 
@@ -43,7 +47,7 @@ export MONO_GAC_PREFIX="/opt/homebrew"
 export ARCHFLAGS="-arch arm64"
 
 # Tools
-# mise manages node/bun/go (see ~/.config/mise/config.toml); uv manages python
+# mise manages node/pnpm/bun/go (see ~/.config/mise/config.toml); uv manages python
 command -v mise >/dev/null && eval "$(mise activate zsh)"
 command -v thefuck >/dev/null && eval "$(thefuck --alias)"
 command -v fzf >/dev/null && eval "$(fzf --zsh)"

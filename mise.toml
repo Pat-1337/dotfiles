@@ -4,8 +4,12 @@
 # backend only drives rustup underneath, so setup.sh installs rustup directly.
 # Java and mono stay system packages: the macOS JVM symlink and the
 # YouCompleteMe Java completer both build against them.
+#
+# pnpm is pinned here, not installed through corepack or npm -g. Either of those
+# writes it into the node install, so the next node bump deletes it.
 
 [tools]
 node = "lts"
+pnpm = "latest"
 bun = "latest"
 go = "latest"
