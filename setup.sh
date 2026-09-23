@@ -369,7 +369,7 @@ setup_macos() {
         cmake mono openjdk \
         fastfetch lazydocker bat gitui yazi zellij \
         tealdeer tokei topgrade atuin pre-commit uv \
-        awscli pipx macmon
+        awscli pipx macmon tree-sitter-cli
 
     local prefix jdk link
     prefix="$(brew --prefix)"
@@ -419,6 +419,8 @@ debian_rust_tools() {
         have "$cmd" || apt_get install "$pkg" || cargo install --locked "$pkg"
     done
     have topgrade || cargo install --locked topgrade
+    # apt's tree-sitter-cli is too old for nvim-treesitter's main branch
+    have tree-sitter || cargo install --locked tree-sitter-cli
     have yazi || cargo install --locked yazi-fm yazi-cli
     return 0
 }
@@ -612,7 +614,7 @@ setup_arch() {
         python python-pip python-pipx
         mono jdk-openjdk mise
         github-cli fzf thefuck ripgrep fd ghostty
-        lazydocker bat gitui yazi zellij tealdeer tokei atuin uv
+        lazydocker bat gitui yazi zellij tealdeer tokei atuin uv tree-sitter-cli
         docker docker-compose postgresql pre-commit obsidian lact
     )
     has_nvidia && pkgs+=(nvtop)
