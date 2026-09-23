@@ -16,6 +16,7 @@ set softtabstop=4   " Sets the number of columns for a TAB
 set expandtab       " Expand TABs to spaces
 set autoindent
 set number
+set relativenumber
 set cursorline
 hi cursorline cterm=underline term=underline
 

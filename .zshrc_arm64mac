@@ -1,13 +1,17 @@
 # Tie the compiler search paths to arrays. They then hold no duplicate, and no
 # empty entry from a trailing colon, which a compiler reads as the current
 # directory. Re-sourcing this file is safe.
-typeset -U path PATH
+typeset -U path PATH fpath
 typeset -TU CPATH cpath
 typeset -TU LIBRARY_PATH library_path
 typeset -TU DYLD_LIBRARY_PATH dyld_library_path
 typeset -TU PKG_CONFIG_PATH pkg_config_path
 
 brew_prefix=/opt/homebrew
+
+# What `brew shellenv` sets, without the subprocess. The completions must precede compinit.
+export HOMEBREW_PREFIX=$brew_prefix HOMEBREW_CELLAR=$brew_prefix/Cellar HOMEBREW_REPOSITORY=$brew_prefix
+fpath=($brew_prefix/share/zsh/site-functions $fpath)
 
 path=(
   $HOME/Developer/bin
@@ -28,6 +32,10 @@ path=(
 export PNPM_HOME="$HOME/Library/pnpm"
 path=($PNPM_HOME/bin $path)
 
+# gem installs executables in a per-ruby-version dir that brew leaves off PATH
+gem_dir=($brew_prefix/lib/ruby/gems/*(N/n[-1]))
+path+=(${^gem_dir}/bin)
+
 # The prompt for a shell that has no oh-my-zsh theme
 PS1="%m:%~ %n λ "
 
@@ -46,7 +54,7 @@ export CPPFLAGS="-I$brew_prefix/opt/llvm/include -I$brew_prefix/opt/sqlite/inclu
 
 cpath=($brew_prefix/include $cpath)
 library_path=($brew_prefix/lib $library_path)
-dyld_library_path=($brew_prefix/opt/sqlite/lib $brew_prefix/opt/poppler/lib $brew_prefix/lib $dyld_library_path)
+dyld_library_path=($brew_prefix/opt/sqlite/lib $brew_prefix/opt/poppler/lib $dyld_library_path)
 pkg_config_path=($brew_prefix/opt/sqlite/lib/pkgconfig $pkg_config_path)
 export CPATH LIBRARY_PATH DYLD_LIBRARY_PATH PKG_CONFIG_PATH
 
@@ -89,6 +97,8 @@ secrets() {
   esac
   chmod 600 "$f" || return
   { "${ed[@]}" "$f" } always { chmod 400 "$f" }
+  setopt localoptions allexport
   source "$f"
 }
-[ -s "$HOME/.secrets" ] && source "$HOME/.secrets"
+# allexport, so a line in ~/.secrets without "export" still reaches child processes
+[ -s "$HOME/.secrets" ] && { setopt allexport; source "$HOME/.secrets"; unsetopt allexport }

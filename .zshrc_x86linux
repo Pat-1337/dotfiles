@@ -64,6 +64,8 @@ secrets() {
   esac
   chmod 600 "$f" || return
   { "${ed[@]}" "$f" } always { chmod 400 "$f" }
+  setopt localoptions allexport
   source "$f"
 }
-[ -s "$HOME/.secrets" ] && source "$HOME/.secrets"
+# allexport, so a line in ~/.secrets without "export" still reaches child processes
+[ -s "$HOME/.secrets" ] && { setopt allexport; source "$HOME/.secrets"; unsetopt allexport }
