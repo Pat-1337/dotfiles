@@ -1,7 +1,8 @@
 [misc]
-# Fully unattended: no confirmation prompts, no retry-on-failure prompts
 assume_yes = true
 no_retry = true
 
-# vcpkg came in via brew without VCPKG_ROOT and wants sudo — skip it
-disable = ["vcpkg"]
+disable = ["vcpkg", "mise"]
+
+[commands]
+"mise tools" = "mise upgrade --yes"

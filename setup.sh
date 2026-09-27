@@ -1,23 +1,5 @@
 #!/usr/bin/env bash
 
-### Dotfiles setup — macOS (arm64), Debian/Ubuntu, Arch/CachyOS/Omarchy
-###
-### Usage: ./setup.sh [--no-debloat]
-###
-### Every question is asked up front, then the install runs unattended — start it
-### and walk away. Nothing personal is stored in this repo: the git identity is
-### prompted for and written to ~/.gitconfig, and ~/.secrets never leaves $HOME.
-###
-### A question is skipped when the answer is already on the machine: a git
-### identity in ~/.gitconfig, an includeIf rule for work repos, or an
-### authenticated gh. To change one of those, edit it with git config, or preset
-### GIT_NAME, GIT_EMAIL, GIT_WORK_DIR, GIT_WORK_EMAIL, DEBLOAT_GROUPS or
-### AUTH_GH in the environment. Pipe from /dev/null to skip every question.
-###
-### On Omarchy, ./omarchy-debloat.sh runs first — it strips the preinstalled app
-### layer (see that script's --help for the groups) so this script installs the
-### toolchain instead. --no-debloat skips that pass.
-
 set -uo pipefail
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -32,19 +14,16 @@ done
 
 have() { command -v "$1" >/dev/null; }
 
-# apt prompts through debconf and on changed config files unless told otherwise
 apt_get() {
     sudo DEBIAN_FRONTEND=noninteractive apt-get -y \
         -o Dpkg::Options::=--force-confold -o Dpkg::Options::=--force-confdef "$@"
 }
 
-# A cask install aborts if the app is already in /Applications, so check first
 install_cask() {
     [ -d "/Applications/$2.app" ] && return 0
     brew install --cask "$1"
 }
 
-# `read -p` writes the prompt to stderr, so command substitution stays clean
 ask() {
     local prompt="$1" default="${2:-}" reply
     if [ -n "$default" ]; then
@@ -55,10 +34,10 @@ ask() {
     echo "${reply:-$default}"
 }
 info() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
-is_omarchy() { [ -d "$HOME/.local/share/omarchy" ] || have omarchy-update; }
+is_omarchy() {
+    [ -d /usr/share/omarchy ] || [ -d "$HOME/.local/share/omarchy" ] || have omarchy-update
+}
 
-# 0x10de is NVIDIA's PCI vendor id. Read from sysfs rather than shelling out to
-# lspci, which needs pciutils — not yet installed when the package list is built.
 has_nvidia() {
     have nvidia-smi && return 0
     [ -d /proc/driver/nvidia ] && return 0
@@ -70,10 +49,6 @@ if [ "$(id -u)" -eq 0 ]; then
     exit 1
 fi
 
-### Everything interactive lives here — the rest of the run must not block.
-### A question is only asked when its answer is not already on the machine.
-
-# A previous run, or the user, may already have an includeIf rule for work repos
 has_git_work_identity() {
     git config --global --name-only --get-regexp '^includeIf\.gitdir' >/dev/null 2>&1
 }
@@ -86,7 +61,6 @@ collect_inputs() {
     DEBLOAT_GROUPS="${DEBLOAT_GROUPS:-default}"
     AUTH_GH="${AUTH_GH:-ask}"
 
-    # gh is usually already authenticated: cloning this repo needed it
     if [ "$AUTH_GH" = ask ] && have gh && gh auth status >/dev/null 2>&1; then
         AUTH_GH=authed
     fi
@@ -97,13 +71,9 @@ collect_inputs() {
         return 0
     fi
 
-    # Work out what is missing before printing anything, so a fully configured
-    # machine shows no questions at all.
     local ask_identity=0 ask_work=0 ask_debloat=0 ask_gh=0
     { [ -n "$GIT_NAME" ] && [ -n "$GIT_EMAIL" ]; } || ask_identity=1
 
-    # The work identity has nothing to remember when it is declined, so only
-    # offer it during first-time git setup. Otherwise it would ask on every run.
     if [ -n "$GIT_WORK_DIR" ]; then
         [ -z "$GIT_WORK_EMAIL" ] && ask_work=1
     elif ((ask_identity)) && ! has_git_work_identity; then
@@ -154,43 +124,32 @@ collect_inputs() {
     *) echo "  github login   : $AUTH_GH" ;;
     esac
 
-    # Nothing was asked, so nothing needs confirming — do not block the run
     if ((ask_identity || ask_work || ask_debloat || ask_gh)); then
         read -r -p "
 Press Enter to start, Ctrl-C to abort. " </dev/tty
     fi
 }
 
-# One password prompt, refreshed in the background, so no step blocks later on.
-# The parent process drives the loop. A failed refresh must not end it, because
-# the credential can come back — see resudo.
-#
-# macOS gets no prompt here. Homebrew always runs before the one sudo call the
-# platform makes, and it deletes the credential, so priming it now only asks for
-# a password that nothing can use. resudo asks at the point of use instead.
 sudo_keepalive() {
     [ "$(uname -s)" = Darwin ] && return 0
     info "Asking for sudo once"
-    sudo -v || exit 1
+    sudo -n true 2>/dev/null || sudo -v || exit 1
     ( while kill -0 "$$" 2>/dev/null; do sudo -n true 2>/dev/null; sleep 50; done ) &
     SUDO_PID=$!
     trap 'kill "$SUDO_PID" 2>/dev/null' EXIT
 }
 
-# Homebrew runs `sudo --reset-timestamp` on every brew command, so the cached
-# credential never survives one. Ask again, and only when it is really gone.
 resudo() { sudo -n true 2>/dev/null || sudo -v; }
 
 configure_git() {
     [ -n "$GIT_NAME" ] || return 0
     info "Git identity ($GIT_NAME <$GIT_EMAIL>)"
     git config --global user.name "$GIT_NAME"
-    git config --global user.email "$GIT_EMAIL"
+    [ -n "$GIT_EMAIL" ] && git config --global user.email "$GIT_EMAIL"
     git config --global init.defaultBranch main
     git config --global pull.rebase true
     git config --global push.autoSetupRemote true
 
-    # A separate identity for work repos, so a personal email can't leak into them
     if [ -n "$GIT_WORK_DIR" ] && [ -n "$GIT_WORK_EMAIL" ]; then
         local work="$HOME/.gitconfig-work" dir="${GIT_WORK_DIR%/}/"
         printf '[user]\n\temail = %s\n' "$GIT_WORK_EMAIL" >"$work"
@@ -199,8 +158,6 @@ configure_git() {
     fi
 }
 
-# The repo is public, so ~/.secrets is created empty and never copied out of it.
-# `secrets` (see .zshrc) unlocks it for an edit and re-locks it afterwards.
 ensure_secrets() {
     [ -f "$HOME/.secrets" ] && return 0
     info "Creating ~/.secrets (read-only; edit it with: secrets)"
@@ -219,9 +176,20 @@ backup_existing() {
 
 install_oh_my_zsh() {
     info "Oh My Zsh + plugins"
-    [ -d "$HOME/.oh-my-zsh" ] || RUNZSH=no CHSH=no KEEP_ZSHRC=yes \
+    local omz="$HOME/.oh-my-zsh" bak=""
+    if ! have zsh; then
+        echo "zsh is not installed — skipping Oh My Zsh." >&2
+        return 0
+    fi
+    if [ -d "$omz" ] && [ ! -f "$omz/oh-my-zsh.sh" ]; then
+        bak="$omz.incomplete.$(date +%Y%m%d-%H%M%S)"
+        echo "Found an incomplete $omz — moving it to $bak"
+        mv "$omz" "$bak"
+    fi
+    [ -d "$omz" ] || RUNZSH=no CHSH=no KEEP_ZSHRC=yes \
         sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
-    local custom="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}" plugin
+    [ -n "$bak" ] && [ -d "$bak/custom/plugins" ] && cp -an "$bak/custom/plugins/." "$omz/custom/plugins/"
+    local custom="${ZSH_CUSTOM:-$omz/custom}" plugin
     for plugin in zsh-syntax-highlighting zsh-autosuggestions; do
         [ -d "$custom/plugins/$plugin" ] || \
             git clone --depth 1 "https://github.com/zsh-users/$plugin.git" "$custom/plugins/$plugin"
@@ -242,9 +210,6 @@ install_uv() {
     have ty || uv tool install ty
 }
 
-# Node, pnpm, Bun and Go come from mise, pinned by mise.toml, so every machine runs
-# the same versions and a project can pin its own. Python stays with uv and Rust
-# with rustup — mise's rust backend only drives rustup anyway.
 install_runtimes() {
     if ! have mise; then
         echo "mise is not installed — no runtimes installed." >&2
@@ -252,7 +217,6 @@ install_runtimes() {
     fi
     info "Runtimes (mise: node, pnpm, bun, go)"
     MISE_YES=1 mise install
-    # The rest of this script needs node: YouCompleteMe builds a JS completer.
     export PATH="$HOME/.local/share/mise/shims:$PATH"
 }
 
@@ -268,20 +232,85 @@ github_auth() {
 
 install_dotfiles() {
     info "Dotfiles (.zshrc, .vimrc, zed, helix, mise, topgrade, .secrets)"
-    mkdir -p "$HOME/.config/zed" "$HOME/.config/helix" "$HOME/.config/mise"
-    local pair src dst
-    for pair in "$1:$HOME/.zshrc" \
+    mkdir -p "$HOME/.config/zed" "$HOME/.config/helix" "$HOME/.config/mise/conf.d"
+    release_mise_config
+    local pair src dst topgrade="topgrade.toml"
+    is_omarchy && topgrade="$(omarchy_topgrade)"
+    local -a pairs=("$1:$HOME/.zshrc" \
                 ".vimrc:$HOME/.vimrc" \
-                "topgrade.toml:$HOME/.config/topgrade.toml" \
-                "mise.toml:$HOME/.config/mise/config.toml" \
+                "$topgrade:$HOME/.config/topgrade.toml" \
+                "mise.toml:$HOME/.config/mise/conf.d/dotfiles.toml" \
                 "zed_settings.json:$HOME/.config/zed/settings.json" \
                 "zed_keymap.json:$HOME/.config/zed/keymap.json" \
-                "helix_languages.toml:$HOME/.config/helix/languages.toml"; do
-        src="$DOTFILES_DIR/${pair%%:*}" dst="${pair#*:}"
+                "helix_languages.toml:$HOME/.config/helix/languages.toml")
+    if is_omarchy; then
+        mkdir -p "$HOME/.config/zsh"
+        pairs+=("omarchy.zsh:$HOME/.config/zsh/omarchy.zsh")
+    fi
+    for pair in "${pairs[@]}"; do
+        src="${pair%%:*}" dst="${pair#*:}"
+        [ "${src:0:1}" = / ] || src="$DOTFILES_DIR/$src"
         backup_existing "$dst" "$src"
         cp "$src" "$dst"
     done
+    [ "$topgrade" = topgrade.toml ] || rm -f "$topgrade"
     ensure_secrets
+    migrate_bashrc
+}
+
+release_mise_config() {
+    local cfg="$HOME/.config/mise/config.toml" old rev size
+    [ -f "$cfg" ] || return 0
+    old="$(mktemp)"
+    for rev in $(git -C "$DOTFILES_DIR" rev-list HEAD -- mise.toml 2>/dev/null); do
+        git -C "$DOTFILES_DIR" show "$rev:mise.toml" >"$old" 2>/dev/null || continue
+        size="$(wc -c <"$old")"
+        ((size > 0)) && cmp -s -n "$size" "$old" "$cfg" || continue
+        echo "Moving this repo's runtimes out of $cfg into conf.d/dotfiles.toml"
+        cp "$cfg" "$cfg.bak.$(date +%Y%m%d-%H%M%S)"
+        { echo "[tools]"; tail -c +"$((size + 1))" "$cfg"; } >"$cfg.new"
+        mv "$cfg.new" "$cfg"
+        break
+    done
+    rm -f "$old"
+}
+
+omarchy_topgrade() {
+    local cfg
+    cfg="$(mktemp)"
+    sed 's/^disable = \[\(.*\)\]/disable = [\1, "system"]/' "$DOTFILES_DIR/topgrade.toml" >"$cfg"
+    printf '\n# Added by setup.sh on Omarchy — see omarchy_topgrade there\n[pre_commands]\n"Omarchy" = "omarchy-update -y"\n' >>"$cfg"
+    echo "$cfg"
+}
+
+migrate_bashrc() {
+    local rc="$HOME/.bashrc" local_rc="$HOME/.zshrc.local" line added=0
+    [ -f "$rc" ] || return 0
+    local -a template=()
+    local t
+    for t in /usr/share/omarchy/default/bashrc /etc/skel/.bashrc; do
+        [ -f "$t" ] && mapfile -t -O "${#template[@]}" template <"$t"
+    done
+
+    while IFS= read -r line || [ -n "$line" ]; do
+        case "$line" in
+        "" | "#"* | *"Custom commands after this line"*) continue ;;
+        *".cargo/env"* | *'/bin/env"'* | *"brew shellenv"* | *"mise activate"* | \
+            *"starship init"* | *"zoxide init"* | *"fzf --"* | *"atuin init"*) continue ;;
+        shopt\ * | bind\ * | complete\ * | "set +h" | *bash_completion* | *"/bash/rc"* | *env-bootstrap*) continue ;;
+        esac
+        printf '%s\n' "${template[@]}" | grep -qxF -- "$line" && continue
+        [ -f "$local_rc" ] && grep -qxF -- "$line" "$local_rc" && continue
+        if ((added == 0)); then
+            info "Carrying custom ~/.bashrc lines over to ~/.zshrc.local"
+            [ -f "$local_rc" ] || printf '# Machine-local zsh config, sourced last by ~/.zshrc.\n' >"$local_rc"
+            printf '\n# From ~/.bashrc (%s)\n' "$(date +%F)" >>"$local_rc"
+        fi
+        printf '%s\n' "$line" >>"$local_rc"
+        echo "  $line"
+        added=$((added + 1))
+    done <"$rc"
+    return 0
 }
 
 setup_vim() {
@@ -298,7 +327,6 @@ setup_vim() {
 }
 
 setup_neovim() {
-    # Skipped when a config already exists — including Omarchy's LazyVim
     [ -d "$HOME/.config/nvim" ] && return 0
     info "Neovim config (kickstart.nvim: LSP, Telescope, Treesitter)"
     git clone https://github.com/nvim-lua/kickstart.nvim.git "$HOME/.config/nvim"
@@ -307,10 +335,21 @@ setup_neovim() {
 
 use_zsh() {
     info "Default shell -> zsh"
-    if [ "$(basename "${SHELL:-}")" != "zsh" ]; then
-        resudo
-        sudo chsh -s "$(command -v zsh)" "$USER"
+    local zsh current err
+    zsh="$(command -v zsh)" || { echo "zsh is not installed — keeping the current shell." >&2; return 0; }
+    current="$(getent passwd "$USER" | cut -d: -f7)"
+    [ "$current" = "$zsh" ] && { echo "Already zsh."; return 0; }
+
+    local term="${TERM:-xterm-256color}"
+    [ "$term" = dumb ] && term=xterm-256color
+    if ! err="$(TERM="$term" timeout 60 script -qec "$zsh -i -c exit" /dev/null 2>&1 </dev/null | tr -d '\r')" || [ -n "$err" ]; then
+        echo "~/.zshrc does not start cleanly — keeping $current. Output:" >&2
+        echo "$err" >&2
+        return 0
     fi
+    grep -qxF "$zsh" /etc/shells || echo "$zsh" | sudo tee -a /etc/shells >/dev/null
+    resudo
+    sudo chsh -s "$zsh" "$USER" && echo "Login shell is now $zsh — log out and back in to use it everywhere."
 }
 
 gnome_tweaks() {
@@ -322,21 +361,16 @@ gnome_tweaks() {
     return 0
 }
 
-# Language toolchains every platform gets. Must run before the per-distro CLI
-# tool installs, which fall back to `cargo install`.
 common_toolchains() {
     install_uv
     install_rust
 }
 
-# ~/Developer is the macOS convention (Finder gives it a special icon) and both
-# .zshrc files put ~/Developer/bin on PATH, so keep the layout identical on Linux.
 setup_dev_dir() {
     info "Development folder (~/Developer/bin)"
     mkdir -p "$HOME/Developer/bin"
 }
 
-# Everything else that is identical on every platform. $1 = which .zshrc to install.
 common_stack() {
     setup_dev_dir
     configure_git
@@ -349,8 +383,6 @@ common_stack() {
 }
 
 setup_macos() {
-    # The GUI installer runs detached, so wait for it — brew needs a compiler.
-    # This is the one step that can't be automated away; it is also the earliest.
     info "Xcode Command Line Tools"
     if ! xcode-select -p >/dev/null 2>&1; then
         xcode-select --install 2>/dev/null || true
@@ -359,7 +391,6 @@ setup_macos() {
     fi
 
     info "Homebrew"
-    # NONINTERACTIVE, or the installer stops to ask for RETURN
     have brew || NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
     eval "$(/opt/homebrew/bin/brew shellenv)"
 
@@ -409,8 +440,6 @@ setup_macos() {
     common_stack ".zshrc_arm64mac"
 }
 
-# Rust CLI tools: apt where the distro has them, cargo otherwise. "cmd:pkg", or
-# "pkg" when the command and the package share a name.
 debian_rust_tools() {
     info "Rust CLI tools (apt where available, cargo otherwise)"
     local t cmd pkg
@@ -419,19 +448,11 @@ debian_rust_tools() {
         have "$cmd" || apt_get install "$pkg" || cargo install --locked "$pkg"
     done
     have topgrade || cargo install --locked topgrade
-    # apt's tree-sitter-cli is too old for nvim-treesitter's main branch
     have tree-sitter || cargo install --locked tree-sitter-cli
     have yazi || cargo install --locked yazi-fm yazi-cli
     return 0
 }
 
-# Omarchy already has clipboard history: SUPER CTRL + V opens walker's clipboard
-# module. A second watcher there would record every copy twice.
-#
-# Ringboard is Rust and covers both session types. Its own installer picks the
-# X11 or the Wayland watcher, writes the systemd user units, and rewrites them
-# for cargo's bin path — including the fallback for Wayland compositors without
-# ext_data_control_manager_v1. Needs cargo, so call this after common_toolchains.
 install_clipboard_history() {
     if is_omarchy; then
         echo "Omarchy supplies clipboard history (SUPER CTRL + V) — skipping Ringboard."
@@ -449,7 +470,6 @@ install_clipboard_history() {
     return 0
 }
 
-# LACT's GUI talks to lactd over a socket, so the daemon has to be running
 enable_lactd() {
     have lact || return 0
     info "LACT daemon"
@@ -463,13 +483,11 @@ setup_debian() {
         build-essential cmake clang llvm libssl-dev libclang-dev libpq-dev \
         python3-dev python3-pip python3-setuptools pipx virtualenvwrapper \
         mono-complete default-jdk vlc dconf-editor ripgrep fd-find \
-        xxd bat wl-clipboard xdg-utils pre-commit jq lsb-release
+        xxd bat wl-clipboard xdg-utils pre-commit jq lsb-release procps file
     apt_get install thefuck || pipx install thefuck
     apt_get install fastfetch || echo "fastfetch not in repos, skipping"
-    # A cargo build of helix ships no runtime directory, so it has no grammars
     apt_get install helix || echo "helix not in repos, skipping"
 
-    # Debian ships these under different binary names
     mkdir -p "$HOME/.local/bin"
     have fdfind && ln -sf "$(command -v fdfind)" "$HOME/.local/bin/fd"
     have batcat && ln -sf "$(command -v batcat)" "$HOME/.local/bin/bat"
@@ -483,9 +501,6 @@ setup_debian() {
         apt_get update && apt_get install gh
     fi
 
-    # extrepo is Debian's own mechanism for third-party repositories and keeps
-    # the key out of our hands. Not every release carries a mise recipe, so fall
-    # back to mise's apt repository.
     info "mise (apt repo)"
     if ! have mise; then
         if apt_get install extrepo && sudo extrepo enable mise; then
@@ -535,10 +550,6 @@ setup_debian() {
     fi
     apt_get install helium-bin
 
-    # Obsidian and LACT publish no apt repo, and a hand-installed .deb never sees
-    # an update. deb-get tracks their GitHub releases and installs real .debs
-    # through dpkg — still apt, nothing sandboxed — and topgrade has a native
-    # deb-get step, so `update` picks up new versions with no extra wiring.
     info "deb-get"
     if ! have deb-get; then
         curl -sL https://raw.githubusercontent.com/wimpysworld/deb-get/main/deb-get |
@@ -570,11 +581,45 @@ setup_debian() {
     common_toolchains
     install_clipboard_history
     debian_rust_tools
+    install_colima
     common_stack ".zshrc_x86linux"
     use_zsh
 }
 
-# yay is preinstalled on Omarchy; paru ships with some CachyOS installs
+pacman_conflict_free() {
+    local pkg conflict installed
+    for pkg in "$@"; do
+        installed="$(pacman -Qq "$pkg" 2>/dev/null)"
+        if [ -n "$installed" ] && [ "$installed" != "$pkg" ]; then
+            echo "Skipping $pkg: the installed $installed provides it" >&2
+            continue
+        fi
+        if [ -z "$installed" ]; then
+            for conflict in $(pacman -Si "$pkg" 2>/dev/null | sed -n 's/^Conflicts With *: //p'); do
+                [ "$conflict" = None ] && continue
+                if pacman -T "$conflict" >/dev/null 2>&1; then
+                    echo "Skipping $pkg: it conflicts with the installed ${conflict%%[<>=]*}" >&2
+                    continue 2
+                fi
+            done
+        fi
+        echo "$pkg"
+    done
+}
+
+install_colima() {
+    info "Homebrew on Linux + colima"
+    local brew=/home/linuxbrew/.linuxbrew/bin/brew
+    if [ ! -x "$brew" ]; then
+        resudo
+        NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" ||
+            { echo "Homebrew install failed — skipping colima." >&2; return 0; }
+    fi
+    "$brew" list --formula colima >/dev/null 2>&1 || "$brew" install colima ||
+        echo "colima install failed — retry with: brew install colima" >&2
+    return 0
+}
+
 arch_aur() {
     local helper
     for helper in yay paru; do
@@ -588,10 +633,6 @@ arch_aur() {
     return 1
 }
 
-# `omarchy-update-perform` runs migrations and *then* `omarchy-hook post-update`,
-# and migrations do re-add apps (cliamp and spotify both arrived that way), so
-# re-apply the debloat from the hook. Delete
-# ~/.config/omarchy/hooks/post-update.d/dotfiles-debloat to stop it.
 install_debloat_hook() {
     have omarchy-hook-install || return 0
     info "Omarchy post-update hook (re-applies the debloat)"
@@ -635,14 +676,18 @@ setup_arch() {
             [ "$DEBLOAT_GROUPS" = skip ] || install_debloat_hook
         fi
     else
-        # GNOME/X11-era extras that make no sense next to Hyprland
         pkgs+=(vlc dconf-editor)
     fi
 
     info "Pacman packages"
-    sudo pacman -Syu --needed --noconfirm "${pkgs[@]}"
+    mapfile -t pkgs < <(pacman_conflict_free "${pkgs[@]}")
+    if is_omarchy; then
+        sudo pacman -S --needed --noconfirm "${pkgs[@]}" ||
+            echo "pacman failed — run 'omarchy update', then this script again." >&2
+    else
+        sudo pacman -Syu --needed --noconfirm "${pkgs[@]}"
+    fi
 
-    # python-virtualenvwrapper is AUR-only; pipx keeps it out of the pacman transaction
     info "virtualenvwrapper (pipx — not in the official repos)"
     pipx install virtualenvwrapper || true
 
@@ -662,6 +707,7 @@ setup_arch() {
     install_clipboard_history
     info "topgrade (AUR — not in the official repos)"
     have topgrade || arch_aur topgrade || cargo install --locked topgrade
+    install_colima
     common_stack ".zshrc_x86linux"
     use_zsh
 }
@@ -681,10 +727,10 @@ esac
 
 if have topgrade; then
     info "Upgrading existing packages (topgrade)"
+    [ "$(uname -s)" = Darwin ] || resudo
     topgrade -y || true
 fi
 
-# Last, and the only thing that can block after the questions
 [ "$AUTH_GH" = yes ] && github_auth
 
 info "Done. Restart your terminal (or run: exec zsh)"

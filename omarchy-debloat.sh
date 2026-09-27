@@ -1,14 +1,5 @@
 #!/usr/bin/env bash
 
-### Omarchy debloat — strip the preinstalled app layer, keep the desktop intact.
-###
-### Omarchy ships its own `omarchy-remove-preinstalls`, but that one also drops
-### claude-code and lazydocker, which setup.sh installs on purpose. This script
-### keeps those (plus obsidian), keeps everything the Hyprland desktop needs
-### (gum, impala, bluetui, wiremix, nautilus, mpv, imv, gpu-screen-recorder),
-### keeps the "Disk Usage"/"Docker" TUI launchers and the CUPS printing stack,
-### and lets you pick what else goes.
-
 set -uo pipefail
 
 DEFAULT_GROUPS=(apps webapps agents)
@@ -58,7 +49,6 @@ pkgs_for() {
     esac
 }
 
-# .desktop launchers whose Exec matches $1
 stubs() {
     local dir="$HOME/.local/share/applications" f
     [ -d "$dir" ] || return 0
@@ -71,7 +61,6 @@ stubs() {
 WEBAPP_EXEC='omarchy-launch-webapp|omarchy-launch-or-focus-webapp|omarchy-webapp-handler'
 AGENT_STUBS=(codex gemini copilot opencode playwright-cli pi ghui)
 
-# npx wrappers omarchy-npx-install wrote — never a binary the user installed themselves
 agent_stubs() {
     local s f
     for s in "${AGENT_STUBS[@]}"; do
@@ -90,9 +79,28 @@ remove_stubs() {
     done
 }
 
-# Omarchy's bindings.conf launches the apps we just removed; its plain-bindings
-# has only terminal/browser/editor/file-manager, so re-add the two we keep.
 plainify_bindings() {
+    local lua="$HOME/.config/hypr/hyprland.lua" binds="$HOME/.config/hypr/bindings.lua"
+    if [ -f "$lua" ]; then
+        grep -q '^omarchy_preinstalled_bindings = false' "$lua" && return 0
+        grep -q '^require("default.hypr.omarchy")' "$lua" || return 0
+        info "Hyprland: preinstalled-app bindings off (backup: $lua.bak)"
+        run cp "$lua" "$lua.bak"
+        run sed -i 's/^require("default.hypr.omarchy")/omarchy_preinstalled_bindings = false\n&/' "$lua"
+        if ((DRY)); then
+            echo "  [dry-run] append Tmux + Docker bindings to $binds"
+        else
+            cat >>"$binds" <<'BINDS'
+
+-- Kept from Omarchy's preinstalled-app bindings (omarchy-debloat.sh)
+o.bind("SUPER + ALT + RETURN", "Tmux", { omarchy = "terminal-tmux" })
+o.bind("SUPER + SHIFT + D", "Docker", { tui = "omarchy-launch-docker-tui" })
+BINDS
+        fi
+        [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ] && command -v hyprctl >/dev/null && run hyprctl reload
+        return 0
+    fi
+
     local src="${OMARCHY_PATH:-$HOME/.local/share/omarchy}/default/hypr/plain-bindings.conf"
     local dst="$HOME/.config/hypr/bindings.conf"
     [ -f "$src" ] && [ -f "$dst" ] || return 0
@@ -137,9 +145,7 @@ done
 
 [ "$(id -u)" -eq 0 ] && die "Run as your user, not root."
 command -v pacman >/dev/null || die "Not an Arch system."
-[ -d "$HOME/.local/share/omarchy" ] || die "Omarchy not found at ~/.local/share/omarchy."
-
-### Plan
+[ -d /usr/share/omarchy ] || [ -d "$HOME/.local/share/omarchy" ] || die "Omarchy not found."
 
 remove=()
 for g in "${groups[@]}"; do
@@ -163,8 +169,6 @@ if ((DRY == 0)) && ((YES == 0)); then
     read -r reply
     [[ $reply == [yY]* ]] || die "Aborted."
 fi
-
-### Act
 
 if [ ${#remove[@]} -gt 0 ]; then
     info "Removing packages"

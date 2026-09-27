@@ -5,6 +5,9 @@ Debian, Ubuntu, Arch, CachyOS, and Omarchy.
 
 This file uses ASD-STE100 Simplified Technical English.
 
+The code has no comments. For the reasons behind the decisions, see
+[docs/](docs/README.md).
+
 ## Install
 
 ```sh
@@ -77,7 +80,8 @@ is then available on all of your machines.
 | `.zshrc_arm64mac` or `.zshrc_x86linux` | `~/.zshrc` |
 | `.vimrc` | `~/.vimrc` |
 | `topgrade.toml` | `~/.config/topgrade.toml` |
-| `mise.toml` | `~/.config/mise/config.toml` |
+| `mise.toml` | `~/.config/mise/conf.d/dotfiles.toml` |
+| `omarchy.zsh` | `~/.config/zsh/omarchy.zsh` (Omarchy only) |
 | `zed_settings.json` and `zed_keymap.json` | `~/.config/zed/` |
 | `helix_languages.toml` | `~/.config/helix/languages.toml` |
 | `iterm2.plist` | iTerm2 preferences (macOS) |
@@ -123,10 +127,39 @@ actions:
   `omarchy-install-zed`, because that command installs `omazed`, and `omazed`
   writes to `settings.json`.
 
-Omarchy puts its `omarchy-*` commands on the `PATH` from its bash
-configuration only. So `.zshrc_x86linux` exports `OMARCHY_PATH` and adds
-`$OMARCHY_PATH/bin` to the `PATH`. Without this, those commands are not
-available in a zsh shell or in an SSH session.
+- It installs packages with `pacman -S --needed`, not `pacman -Syu`. An
+  Omarchy pacman hook stops each direct system upgrade, because
+  `omarchy update` must do that work. For the same reason, topgrade does not
+  run its system step on Omarchy. It runs `omarchy-update -y` before its other
+  steps.
+
+### From bash to zsh
+
+Omarchy configures bash: aliases, functions, the starship prompt, zoxide, and
+the `PATH`. Its `~/.bashrc` reads these from `/usr/share/omarchy/default/bash`.
+On Omarchy, the script copies `omarchy.zsh` to `~/.config/zsh/omarchy.zsh`,
+and `~/.zshrc` reads it. This file gives zsh the same configuration:
+
+- It reads the Omarchy environment and alias files directly, so Omarchy
+  updates also apply to zsh.
+- Each Omarchy bash function (`tdl`, `hdl`, `fip`, `iso2sd`, `ssh`, and
+  others) gets a zsh function with the same name. That function runs the bash
+  function in bash. The `ga` and `gd` functions change the directory, so
+  `omarchy.zsh` has its own zsh versions of them.
+- The starship prompt replaces the Oh My Zsh theme.
+- If Omarchy and the Oh My Zsh git plugin use the same name (`ga`, `gd`,
+  `gcm`, `gcam`), the Omarchy function or alias is used.
+
+Your own lines in `~/.bashrc` go to `~/.zshrc.local`, and `~/.zshrc` reads
+that file last. The script does not copy the Omarchy template lines, the lines
+that `~/.zshrc` already does (cargo, uv, Homebrew, mise), or bash-only
+commands. You can run the script again. It does not copy a line two times.
+`~/.bashrc` does not change, so bash continues to operate.
+
+The script changes the login shell to zsh as the last step. Before it does
+this, it makes sure of two conditions: zsh is installed, and `zsh -i` starts
+with no errors. If a condition is false, the shell stays bash. After the
+change, log out and log in again.
 
 ### Removal of the preinstalled apps
 
@@ -189,7 +222,7 @@ The script installs these tools on all three systems:
 - Shell: Oh My Zsh with the syntax-highlight and autosuggestion plugins.
 - Editors: Helix, Vundle with YouCompleteMe, and kickstart.nvim.
 - Agent and version control: Claude Code and gh.
-- Services: Docker and PostgreSQL.
+- Services: Docker and PostgreSQL. On Linux, also colima from Homebrew.
 - Command line tools: ripgrep, fd, bat, fzf, atuin, zellij, yazi, gitui,
   lazydocker, btop, tealdeer, tokei, topgrade, and pre-commit.
 
@@ -296,7 +329,28 @@ control Rust, because its Rust support only operates rustup. mise does not
 control Java or mono. The macOS Java symlink and the YouCompleteMe Java
 completer both need the system packages.
 
-Topgrade has a mise step, so the `update` command also updates the runtimes.
+The runtimes in `mise.toml` go to `conf.d`. `~/.config/mise/config.toml` stays
+with the machine: Omarchy keeps its tools in that file, and `mise use -g`
+writes to it. A version in `config.toml` overrides the same tool in this
+repository. Older versions of the script wrote `mise.toml` over `config.toml`.
+The script now finds that copy and removes it, and it keeps the other lines.
+
+The `update` command also updates the runtimes. Topgrade has a mise step, but
+that step runs `mise self-update` first. That command fails if a package
+manager (pacman, apt, or Homebrew) installed mise, and then the step stops. So
+`topgrade.toml` disables the step and runs `mise upgrade --yes` as a custom
+command. The package manager updates mise itself.
+
+## Colima on Linux
+
+Colima is not in the Arch or Debian repositories. On Linux, the script
+installs [Homebrew](https://docs.brew.sh/Homebrew-on-Linux) in
+`/home/linuxbrew`, and then installs `colima` with it. Topgrade has a brew
+step, so `update` updates colima.
+
+Homebrew also installs its own `llvm`, `python`, and `systemd` for colima.
+`.zshrc_x86linux` puts the Homebrew directories at the end of the `PATH`. The
+system versions of these tools are then used first.
 
 ## Python and editors
 
