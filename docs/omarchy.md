@@ -68,8 +68,10 @@ On Omarchy, `setup.sh` installs a variant of `topgrade.toml`:
 
 - The `system` step is disabled, because the update guard would abort its
   `pacman -Syu`.
-- `omarchy-update -y` runs as a pre-command. It updates pacman, AUR, mise,
-  runs the migrations, and may ask for a reboot at the end.
+- `omarchy-update -y` runs as a custom command. It updates pacman, AUR, mise,
+  runs the migrations, and may ask for a reboot at the end. It is not a
+  pre-command, because a failed pre-command stops topgrade, and the brew and
+  mise steps would then not run.
 
 ## From bash to zsh
 

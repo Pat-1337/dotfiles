@@ -130,8 +130,8 @@ actions:
 - It installs packages with `pacman -S --needed`, not `pacman -Syu`. An
   Omarchy pacman hook stops each direct system upgrade, because
   `omarchy update` must do that work. For the same reason, topgrade does not
-  run its system step on Omarchy. It runs `omarchy-update -y` before its other
-  steps.
+  run its system step on Omarchy. It runs `omarchy-update -y` as a custom
+  command.
 
 ### From bash to zsh
 

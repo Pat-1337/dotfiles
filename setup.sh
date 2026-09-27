@@ -278,8 +278,8 @@ release_mise_config() {
 omarchy_topgrade() {
     local cfg
     cfg="$(mktemp)"
-    sed 's/^disable = \[\(.*\)\]/disable = [\1, "system"]/' "$DOTFILES_DIR/topgrade.toml" >"$cfg"
-    printf '\n# Added by setup.sh on Omarchy — see omarchy_topgrade there\n[pre_commands]\n"Omarchy" = "omarchy-update -y"\n' >>"$cfg"
+    sed -e 's/^disable = \[\(.*\)\]/disable = [\1, "system"]/' \
+        -e 's/^\[commands\]$/&\n"Omarchy" = "omarchy-update -y"/' "$DOTFILES_DIR/topgrade.toml" >"$cfg"
     echo "$cfg"
 }
 
