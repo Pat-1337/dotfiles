@@ -633,6 +633,17 @@ arch_aur() {
     return 1
 }
 
+disable_omarchy_snapshots() {
+    have snapper || return 0
+    info "Omarchy: no Snapper snapshots on update"
+    sudo tee /usr/local/bin/omarchy-snapshot >/dev/null <<'EOF'
+#!/bin/bash
+[ "${1:-}" = create ] && exit 127
+exec /usr/bin/omarchy-snapshot "$@"
+EOF
+    sudo chmod 755 /usr/local/bin/omarchy-snapshot
+}
+
 install_debloat_hook() {
     have omarchy-hook-install || return 0
     info "Omarchy post-update hook (re-applies the debloat)"
@@ -675,6 +686,7 @@ setup_arch() {
             esac
             [ "$DEBLOAT_GROUPS" = skip ] || install_debloat_hook
         fi
+        disable_omarchy_snapshots
     else
         pkgs+=(vlc dconf-editor)
     fi

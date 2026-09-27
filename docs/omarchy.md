@@ -73,6 +73,31 @@ On Omarchy, `setup.sh` installs a variant of `topgrade.toml`:
   pre-command, because a failed pre-command stops topgrade, and the brew and
   mise steps would then not run.
 
+## No snapshots
+
+`omarchy update` runs `omarchy-snapshot create` before it upgrades, which
+takes a Snapper snapshot of `/` (up to 5 are kept, and they appear in the
+Limine boot menu). Snapper cannot be removed, because the `omarchy` package
+depends on it. Deleting the `root` Snapper config does not last either: a
+migration creates it again when it is missing.
+
+`omarchy-update` treats exit code 127 from `omarchy-snapshot create` as
+"Snapper is deliberately absent" and continues with no warning. So `setup.sh`
+installs `/usr/local/bin/omarchy-snapshot`, which comes before `/usr/bin` on
+`PATH`, and pacman never changes it:
+
+- `create` exits 127, so no snapshot is taken.
+- Anything else (`restore`) runs the real `/usr/bin/omarchy-snapshot`.
+
+To take snapshots again, delete `/usr/local/bin/omarchy-snapshot`.
+
+Delete the snapshots that already exist:
+
+```sh
+sudo snapper -c root --csvout list --columns number | tail -n +2 | grep -vx 0 |
+  xargs -r sudo snapper -c root delete
+```
+
 ## From bash to zsh
 
 Omarchy configures bash through `~/.bashrc`, which reads
