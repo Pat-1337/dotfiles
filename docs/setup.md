@@ -32,6 +32,16 @@ personal email cannot leak into work commits.
 `ask` uses `read -p`, which writes the prompt to stderr, so command
 substitution captures only the answer.
 
+Every package manager runs in its silent mode:
+
+- apt: `DEBIAN_FRONTEND=noninteractive` and `--force-confold --force-confdef`.
+- Homebrew installer: `NONINTERACTIVE=1`.
+- pacman: `--noconfirm`. yay and paru: also `--answerclean None
+  --answerdiff None --answeredit None`.
+- Vim and Neovim plugin installs: stdin from `/dev/null`.
+
+The one exception is the Xcode Command Line Tools dialog on macOS (see below).
+
 ## sudo
 
 - Linux: one password prompt at the start, refreshed in the background every
@@ -66,10 +76,12 @@ needs node.
 | `.zshrc_arm64mac` / `.zshrc_x86linux` | `~/.zshrc` |
 | `omarchy.zsh` | `~/.config/zsh/omarchy.zsh` (Omarchy only) |
 | `.vimrc` | `~/.vimrc` |
+| `nvim_dotfiles.lua` | `~/.config/nvim/plugin/dotfiles.lua` (see editors.md) |
 | `topgrade.toml` | `~/.config/topgrade.toml` (Omarchy gets a variant, see omarchy.md) |
 | `mise.toml` | `~/.config/mise/conf.d/dotfiles.toml` |
 | `zed_settings.json`, `zed_keymap.json` | `~/.config/zed/` |
 | `helix_languages.toml` | `~/.config/helix/languages.toml` |
+| `iterm2.plist` | iTerm2 preferences, through `defaults import` (macOS) |
 
 A destination that differs from the repository copy is saved as
 `<file>.bak.<timestamp>` first.
@@ -133,7 +145,8 @@ missing. Log out and in after the change.
   Helium and topgrade.
 - `python-virtualenvwrapper` is AUR-only, so pipx installs it instead. That
   keeps it out of the pacman transaction.
-- `vlc` and `dconf-editor` are added only outside Omarchy.
+- `vlc` and `dconf-editor` are added only outside Omarchy, and the GNOME
+  settings are applied only outside Omarchy.
 - For package conflicts and the Omarchy pacman guard, see
   [omarchy.md](omarchy.md).
 

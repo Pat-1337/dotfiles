@@ -35,5 +35,9 @@ Remove this block when a Helix release has the new source.
 
 ## Zed
 
+Python uses the `ty` and `ruff` language servers. Format on save is off. A
+manual format runs ruff: organize imports, fix, then format. The default
+agent model is Claude Opus 5.
+
 Zed comes from pacman on Arch, not from `omarchy-install-zed`. That command
 installs `omazed`, which writes to `settings.json`.

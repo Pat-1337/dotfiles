@@ -48,6 +48,21 @@ launchers, and the CUPS printing stack.
 ./omarchy-debloat.sh dotnet nvim    # only these groups
 ```
 
+Default groups:
+
+- `apps`: 1Password, Signal, Spotify, Typora, LibreOffice, OBS Studio,
+  Kdenlive, Pinta, Xournal++, LocalSend, Aether, cliamp, try.
+- `webapps`: the Chromium web app launchers, and the Hyprland bindings that
+  point at them.
+- `agents`: the npx stubs for codex, gemini, copilot, opencode,
+  playwright-cli, pi, ghui.
+
+Optional groups: `gnome-apps`, `input-method` (fcitx5), `dotnet`, and `nvim`
+(Omarchy's LazyVim). `--help` lists them all.
+
+`pacman -Rns` gets only the packages that are installed, so one missing
+package cannot abort the transaction. Orphans are removed afterwards.
+
 - The agent stubs are removed only when they are npx wrappers written by
   `omarchy-npx-install`, never a binary you installed yourself.
 - Keybindings: the removed apps still have keybindings. On current Omarchy
@@ -61,6 +76,12 @@ launchers, and the CUPS printing stack.
   spotify arrived that way). So `setup.sh` installs
   `~/.config/omarchy/hooks/post-update.d/dotfiles-debloat`, which runs the
   debloat again. Delete that file to stop it.
+
+> [!NOTE]
+> [a-la-carchy](https://github.com/DanielCoffey1/a-la-carchy) is an
+> interactive alternative. It is a large TUI that also sets the monitor layout,
+> power profiles, and ASUS ROG fan curves. It suits a one-time manual setup.
+> This script runs with no operator and can run again safely.
 
 ## Updates (topgrade)
 
