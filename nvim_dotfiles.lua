@@ -8,11 +8,22 @@ vim.o.scrolloff = 5
 
 vim.keymap.set('n', 'gn', '<cmd>bnext<CR>', { desc = 'Next buffer' })
 vim.keymap.set('n', 'gp', '<cmd>bprevious<CR>', { desc = 'Previous buffer' })
-vim.keymap.set('n', 'gd', '<cmd>bprevious | bdelete #<CR>', { desc = 'Delete buffer, keep window' })
+vim.keymap.set('n', 'gd', function()
+  if vim.fn.tabpagenr '$' > 1 and vim.fn.winnr '$' == 1 then
+    vim.cmd.bdelete()
+  else
+    vim.cmd 'bprevious | bdelete #'
+  end
+end, { desc = 'Delete buffer; closes a single-window tab' })
 -- Omarchy's LazyVim has no Telescope
 if pcall(require, 'telescope.builtin') then
   vim.keymap.set('n', 'gh', function() require('telescope.builtin').find_files() end, { desc = 'Find files' })
 end
+vim.keymap.set('n', '<leader>tn', '<cmd>tabnew<CR>', { desc = '[T]ab [N]ew' })
+
+-- Stops netrw clashing with the <C-h>/<C-l> window maps (E225)
+vim.keymap.set('n', '<Plug>(dotfiles-netrw-hide)', '<Plug>NetrwHideEdit')
+vim.keymap.set('n', '<Plug>(dotfiles-netrw-refresh)', '<Plug>NetrwRefresh')
 
 -- Omarchy's LazyVim themes nvim itself
 if vim.pack and not package.loaded.lazy then

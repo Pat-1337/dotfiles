@@ -24,7 +24,9 @@ Every run copies `nvim_dotfiles.lua` to `~/.config/nvim/plugin/dotfiles.lua`,
 which loads after `init.lua`. It mirrors the Vim settings above: relative
 line numbers, 4-column tabs, `scrolloff=5`, and the `gn`/`gp`/`gd` buffer
 maps. `gh` opens Telescope file search where Telescope exists, so LazyVim
-does not get it.
+does not get it. `<Space>tn` opens a new tab, and `gd` in a tab with one
+window closes the tab too. netrw's own `Ctrl-h` and `Ctrl-l` keys are turned
+off, so those keys move between windows everywhere.
 
 The theme is Kanagawa Wave in dark mode and Dayfox in light mode. On a local
 Mac, auto-dark-mode.nvim follows the system appearance, including the Auto
