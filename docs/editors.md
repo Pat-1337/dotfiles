@@ -33,11 +33,14 @@ The LSP keys follow Zed's vim mode: `gd` definition, `gD` declaration, `gy`
 type definition, `gI` implementation, `gA` references, `g.` code actions,
 `gs`/`gS` file and project symbols, `cd` rename, `g]`/`g[` diagnostics, and `K`
 hover. They exist only in buffers with a language server, so `gd` elsewhere is
-Vim's own. Python uses `ty` and `ruff`, as in Zed. Each one starts if it is
-on `PATH`. ruff's hover is off, because ty already answers it. Rust uses
-rust-analyzer from rustup (`setup.sh` adds the component), with
-`~/.cargo/bin` first on its `PATH`: a Homebrew `rust` would otherwise win, and
-it has no `rust-src`, so the standard library would not resolve.
+Vim's own. Python uses `ty` and `ruff`, as in Zed. Each one starts if it is on
+`PATH`. ruff's hover is off, because ty already answers it. Rust uses
+rust-analyzer from rustup (`setup.sh` adds the component), with `~/.cargo/bin`
+first on its `PATH`: a Homebrew `rust` would otherwise win, and it has no
+`rust-src`, so the standard library would not resolve. Shell scripts use
+bash-language-server, with shellcheck for warnings and shfmt for formatting.
+Kickstart's Mason installs all three on the first start, and the server starts
+when its install ends.
 
 Icons need a Nerd Font. `setup.sh` installs Symbols Nerd Font, which holds only
 the icons, and the iTerm2 profile uses it as the non-ASCII font, so text stays

@@ -264,12 +264,10 @@ release_mise_config() {
     local cfg="$HOME/.config/mise/config.toml" old rev size
     [ -f "$cfg" ] || return 0
     old="$(mktemp)"
-    # mise.toml moved into mise/, so its history is under both paths
     for rev in $(git -C "$DOTFILES_DIR" rev-list HEAD -- mise/mise.toml mise.toml 2>/dev/null); do
         git -C "$DOTFILES_DIR" show "$rev:mise/mise.toml" >"$old" 2>/dev/null ||
             git -C "$DOTFILES_DIR" show "$rev:mise.toml" >"$old" 2>/dev/null || continue
         size="$(wc -c <"$old")"
-        # head, not cmp -n: BSD cmp calls a file that ends at the limit different
         if ((size == 0)) || ! head -c "$size" "$cfg" | cmp -s - "$old"; then continue; fi
         echo "Moving this repo's runtimes out of $cfg into conf.d/dotfiles.toml"
         cp "$cfg" "$cfg.bak.$(date +%Y%m%d-%H%M%S)"
