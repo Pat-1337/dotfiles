@@ -327,10 +327,13 @@ setup_vim() {
 }
 
 setup_neovim() {
-    [ -d "$HOME/.config/nvim" ] && return 0
-    info "Neovim config (kickstart.nvim: LSP, Telescope, Treesitter)"
-    git clone https://github.com/nvim-lua/kickstart.nvim.git "$HOME/.config/nvim"
-    nvim --headless "+Lazy! sync" +qa </dev/null || true
+    if [ ! -d "$HOME/.config/nvim" ]; then
+        info "Neovim config (kickstart.nvim: LSP, Telescope, Treesitter)"
+        git clone https://github.com/nvim-lua/kickstart.nvim.git "$HOME/.config/nvim"
+        nvim --headless "+Lazy! sync" +qa </dev/null || true
+    fi
+    mkdir -p "$HOME/.config/nvim/plugin"
+    cp "$DOTFILES_DIR/nvim_dotfiles.lua" "$HOME/.config/nvim/plugin/dotfiles.lua"
 }
 
 use_zsh() {

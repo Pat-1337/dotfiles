@@ -79,6 +79,7 @@ is then available on all of your machines.
 | --- | --- |
 | `.zshrc_arm64mac` or `.zshrc_x86linux` | `~/.zshrc` |
 | `.vimrc` | `~/.vimrc` |
+| `nvim_dotfiles.lua` | `~/.config/nvim/plugin/dotfiles.lua` (kept in step with `.vimrc`) |
 | `topgrade.toml` | `~/.config/topgrade.toml` |
 | `mise.toml` | `~/.config/mise/conf.d/dotfiles.toml` |
 | `omarchy.zsh` | `~/.config/zsh/omarchy.zsh` (Omarchy only) |

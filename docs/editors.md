@@ -20,6 +20,12 @@ On Omarchy, that directory holds Omarchy's LazyVim, so it is kept. To use
 kickstart there, run the debloat `nvim` group, which moves LazyVim to
 `~/.config/nvim.omarchy.bak`, and then run `setup.sh` again.
 
+Every run copies `nvim_dotfiles.lua` to `~/.config/nvim/plugin/dotfiles.lua`,
+which loads after `init.lua`. It mirrors the Vim settings above: relative
+line numbers, 4-column tabs, `scrolloff=5`, and the `gn`/`gp`/`gd` buffer
+maps. `gh` opens Telescope file search where Telescope exists, so LazyVim
+does not get it.
+
 ## Helix
 
 `helix_languages.toml` sets a new source for the `gotmpl` grammar. Helix
