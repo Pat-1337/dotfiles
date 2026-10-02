@@ -3,8 +3,6 @@
 Configuration files and one setup script for macOS (arm64), Debian, Ubuntu,
 Arch, CachyOS, and Omarchy.
 
-This file uses ASD-STE100 Simplified Technical English.
-
 ## Install
 
 ```sh

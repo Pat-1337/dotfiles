@@ -13,3 +13,35 @@ vim.keymap.set('n', 'gd', '<cmd>bprevious | bdelete #<CR>', { desc = 'Delete buf
 if pcall(require, 'telescope.builtin') then
   vim.keymap.set('n', 'gh', function() require('telescope.builtin').find_files() end, { desc = 'Find files' })
 end
+
+-- Omarchy's LazyVim themes nvim itself
+if vim.pack and not package.loaded.lazy then
+  vim.pack.add { 'https://github.com/rebelot/kanagawa.nvim', 'https://github.com/EdenEast/nightfox.nvim' }
+
+  local themes = { dark = 'kanagawa-wave', light = 'dayfox' }
+  local current
+  local function apply(mode)
+    if mode == current then return end
+    current = mode
+    vim.o.background = mode
+    vim.cmd.colorscheme(themes[mode])
+  end
+
+  if vim.fn.has 'mac' == 1 and not vim.env.SSH_CONNECTION then
+    local style = vim.system({ 'defaults', 'read', '-g', 'AppleInterfaceStyle' }):wait().stdout
+    apply(style:match 'Dark' and 'dark' or 'light')
+    vim.pack.add { 'https://github.com/f-person/auto-dark-mode.nvim' }
+    require('auto-dark-mode').setup {
+      set_dark_mode = function() apply 'dark' end,
+      set_light_mode = function() apply 'light' end,
+    }
+  else
+    -- No desktop appearance to follow, so light from 07:00 to 19:00
+    local function by_clock()
+      local hour = tonumber(os.date '%H')
+      apply((hour >= 7 and hour < 19) and 'light' or 'dark')
+    end
+    by_clock()
+    vim.uv.new_timer():start(60000, 60000, vim.schedule_wrap(by_clock))
+  end
+end

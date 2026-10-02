@@ -26,6 +26,13 @@ line numbers, 4-column tabs, `scrolloff=5`, and the `gn`/`gp`/`gd` buffer
 maps. `gh` opens Telescope file search where Telescope exists, so LazyVim
 does not get it.
 
+The theme is Kanagawa Wave in dark mode and Dayfox in light mode. On a local
+Mac, auto-dark-mode.nvim follows the system appearance, including the Auto
+setting that changes at sunrise and sunset. The first check runs before the
+first screen draws, so kickstart's Tokyo Night never shows. Elsewhere (Linux,
+SSH) the theme goes by the clock: light from 07:00 to 19:00. LazyVim keeps its
+own theme.
+
 ## Helix
 
 `helix_languages.toml` sets a new source for the `gotmpl` grammar. Helix
