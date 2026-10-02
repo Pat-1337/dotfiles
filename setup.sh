@@ -199,6 +199,7 @@ install_oh_my_zsh() {
 install_rust() {
     info "Rust (rustup)"
     have cargo || curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    # shellcheck source=/dev/null
     [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
     have rustup && rustup component add rust-analyzer rust-src
     return 0
@@ -269,7 +270,7 @@ release_mise_config() {
             git -C "$DOTFILES_DIR" show "$rev:mise.toml" >"$old" 2>/dev/null || continue
         size="$(wc -c <"$old")"
         # head, not cmp -n: BSD cmp calls a file that ends at the limit different
-        ((size > 0)) && head -c "$size" "$cfg" | cmp -s - "$old" || continue
+        if ((size == 0)) || ! head -c "$size" "$cfg" | cmp -s - "$old"; then continue; fi
         echo "Moving this repo's runtimes out of $cfg into conf.d/dotfiles.toml"
         cp "$cfg" "$cfg.bak.$(date +%Y%m%d-%H%M%S)"
         { echo "[tools]"; tail -c +"$((size + 1))" "$cfg"; } >"$cfg.new"
@@ -351,7 +352,7 @@ use_zsh() {
     local term="${TERM:-xterm-256color}"
     [ "$term" = dumb ] && term=xterm-256color
     if ! err="$(TERM="$term" timeout 60 script -qec "$zsh -i -c exit" /dev/null 2>&1 </dev/null | tr -d '\r')" || [ -n "$err" ]; then
-        echo "~/.zshrc does not start cleanly — keeping $current. Output:" >&2
+        echo "$HOME/.zshrc does not start cleanly — keeping $current. Output:" >&2
         echo "$err" >&2
         return 0
     fi
