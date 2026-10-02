@@ -166,11 +166,11 @@ ensure_secrets() {
 }
 
 backup_existing() {
-    local target="$1" new="$2" bak
+    local target="$1" new="$2" base="${3:-$1}" bak
     if [ -f "$target" ] && ! cmp -s "$new" "$target"; then
-        bak="$target.bak.$(date +%Y%m%d-%H%M%S)"
+        bak="$base.bak.$(date +%Y%m%d-%H%M%S)"
         cp "$target" "$bak"
-        echo "Existing $(basename "$target") backed up to $bak"
+        echo "Existing $(basename "$base") backed up to $bak"
     fi
 }
 
@@ -200,6 +200,7 @@ install_rust() {
     info "Rust (rustup)"
     have cargo || curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
     [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
+    have rustup && rustup component add rust-analyzer rust-src
     return 0
 }
 
@@ -234,18 +235,18 @@ install_dotfiles() {
     info "Dotfiles (.zshrc, .vimrc, zed, helix, mise, topgrade, .secrets)"
     mkdir -p "$HOME/.config/zed" "$HOME/.config/helix" "$HOME/.config/mise/conf.d"
     release_mise_config
-    local pair src dst topgrade="topgrade.toml"
+    local pair src dst topgrade="topgrade/topgrade.toml"
     is_omarchy && topgrade="$(omarchy_topgrade)"
     local -a pairs=("$1:$HOME/.zshrc" \
-                ".vimrc:$HOME/.vimrc" \
+                "vim/vimrc:$HOME/.vimrc" \
                 "$topgrade:$HOME/.config/topgrade.toml" \
-                "mise.toml:$HOME/.config/mise/conf.d/dotfiles.toml" \
-                "zed_settings.json:$HOME/.config/zed/settings.json" \
-                "zed_keymap.json:$HOME/.config/zed/keymap.json" \
-                "helix_languages.toml:$HOME/.config/helix/languages.toml")
+                "mise/mise.toml:$HOME/.config/mise/conf.d/dotfiles.toml" \
+                "zed/settings.json:$HOME/.config/zed/settings.json" \
+                "zed/keymap.json:$HOME/.config/zed/keymap.json" \
+                "helix/languages.toml:$HOME/.config/helix/languages.toml")
     if is_omarchy; then
         mkdir -p "$HOME/.config/zsh"
-        pairs+=("omarchy.zsh:$HOME/.config/zsh/omarchy.zsh")
+        pairs+=("zsh/omarchy.zsh:$HOME/.config/zsh/omarchy.zsh")
     fi
     for pair in "${pairs[@]}"; do
         src="${pair%%:*}" dst="${pair#*:}"
@@ -253,7 +254,7 @@ install_dotfiles() {
         backup_existing "$dst" "$src"
         cp "$src" "$dst"
     done
-    [ "$topgrade" = topgrade.toml ] || rm -f "$topgrade"
+    [ "$topgrade" = topgrade/topgrade.toml ] || rm -f "$topgrade"
     ensure_secrets
     migrate_bashrc
 }
@@ -262,10 +263,13 @@ release_mise_config() {
     local cfg="$HOME/.config/mise/config.toml" old rev size
     [ -f "$cfg" ] || return 0
     old="$(mktemp)"
-    for rev in $(git -C "$DOTFILES_DIR" rev-list HEAD -- mise.toml 2>/dev/null); do
-        git -C "$DOTFILES_DIR" show "$rev:mise.toml" >"$old" 2>/dev/null || continue
+    # mise.toml moved into mise/, so its history is under both paths
+    for rev in $(git -C "$DOTFILES_DIR" rev-list HEAD -- mise/mise.toml mise.toml 2>/dev/null); do
+        git -C "$DOTFILES_DIR" show "$rev:mise/mise.toml" >"$old" 2>/dev/null ||
+            git -C "$DOTFILES_DIR" show "$rev:mise.toml" >"$old" 2>/dev/null || continue
         size="$(wc -c <"$old")"
-        ((size > 0)) && cmp -s -n "$size" "$old" "$cfg" || continue
+        # head, not cmp -n: BSD cmp calls a file that ends at the limit different
+        ((size > 0)) && head -c "$size" "$cfg" | cmp -s - "$old" || continue
         echo "Moving this repo's runtimes out of $cfg into conf.d/dotfiles.toml"
         cp "$cfg" "$cfg.bak.$(date +%Y%m%d-%H%M%S)"
         { echo "[tools]"; tail -c +"$((size + 1))" "$cfg"; } >"$cfg.new"
@@ -279,7 +283,7 @@ omarchy_topgrade() {
     local cfg
     cfg="$(mktemp)"
     sed -e 's/^disable = \[\(.*\)\]/disable = [\1, "system"]/' \
-        -e 's/^\[commands\]$/&\n"Omarchy" = "omarchy-update -y"/' "$DOTFILES_DIR/topgrade.toml" >"$cfg"
+        -e 's/^\[commands\]$/&\n"Omarchy" = "omarchy-update -y"/' "$DOTFILES_DIR/topgrade/topgrade.toml" >"$cfg"
     echo "$cfg"
 }
 
@@ -333,7 +337,8 @@ setup_neovim() {
         nvim --headless "+Lazy! sync" +qa </dev/null || true
     fi
     mkdir -p "$HOME/.config/nvim/plugin"
-    cp "$DOTFILES_DIR/nvim_dotfiles.lua" "$HOME/.config/nvim/plugin/dotfiles.lua"
+    backup_existing "$HOME/.config/nvim/plugin/dotfiles.lua" "$DOTFILES_DIR/nvim/dotfiles.lua"
+    cp "$DOTFILES_DIR/nvim/dotfiles.lua" "$HOME/.config/nvim/plugin/dotfiles.lua"
 }
 
 use_zsh() {
@@ -416,17 +421,22 @@ setup_macos() {
     fi
     export PATH="$prefix/opt/openjdk/bin:$PATH"
 
-    info "Casks (zed, iterm2, obsidian, helium, maccy)"
+    info "Casks (zed, iterm2, obsidian, helium, maccy, Nerd Font symbols)"
     install_cask zed Zed
     install_cask iterm2 iTerm
     install_cask obsidian Obsidian
     install_cask helium-browser Helium
     install_cask maccy Maccy
+    brew list --cask font-symbols-only-nerd-font >/dev/null 2>&1 || brew install --cask font-symbols-only-nerd-font
     [ -f "$HOME/.iterm2_shell_integration.zsh" ] || \
         curl -fsSL https://iterm2.com/shell_integration/zsh -o "$HOME/.iterm2_shell_integration.zsh"
-    if [ -f "$DOTFILES_DIR/iterm2.plist" ]; then
-        defaults export com.googlecode.iterm2 "$HOME/.iterm2.plist.bak" 2>/dev/null || true
-        defaults import com.googlecode.iterm2 "$DOTFILES_DIR/iterm2.plist"
+    if [ -f "$DOTFILES_DIR/iterm2/iterm2.plist" ]; then
+        local live
+        live="$(mktemp)"
+        defaults export com.googlecode.iterm2 "$live" 2>/dev/null && plutil -convert xml1 "$live" &&
+            backup_existing "$live" "$DOTFILES_DIR/iterm2/iterm2.plist" "$HOME/.iterm2.plist"
+        rm -f "$live"
+        defaults import com.googlecode.iterm2 "$DOTFILES_DIR/iterm2/iterm2.plist"
     fi
 
     info "python tools (aws-mfa, virtualenvwrapper)"
@@ -440,7 +450,7 @@ setup_macos() {
     killall Dock
 
     common_toolchains
-    common_stack ".zshrc_arm64mac"
+    common_stack "zsh/zshrc_arm64mac"
 }
 
 debian_rust_tools() {
@@ -486,7 +496,7 @@ setup_debian() {
         build-essential cmake clang llvm libssl-dev libclang-dev libpq-dev \
         python3-dev python3-pip python3-setuptools pipx virtualenvwrapper \
         mono-complete default-jdk vlc dconf-editor ripgrep fd-find \
-        xxd bat wl-clipboard xdg-utils pre-commit jq lsb-release procps file
+        xxd bat wl-clipboard xdg-utils pre-commit jq lsb-release procps file fontconfig xz-utils
     apt_get install thefuck || pipx install thefuck
     apt_get install fastfetch || echo "fastfetch not in repos, skipping"
     apt_get install helix || echo "helix not in repos, skipping"
@@ -533,6 +543,14 @@ setup_debian() {
         curl -fsSL -o /tmp/nvim.tar.gz https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz
         sudo tar -C /opt -xzf /tmp/nvim.tar.gz && rm /tmp/nvim.tar.gz
         ln -sf /opt/nvim-linux-x86_64/bin/nvim "$HOME/.local/bin/nvim"
+    fi
+
+    info "Nerd Font symbols (no apt package — nvim icons)"
+    local fonts="$HOME/.local/share/fonts/NerdFontsSymbolsOnly"
+    if [ ! -f "$fonts/SymbolsNerdFontMono-Regular.ttf" ]; then
+        mkdir -p "$fonts" &&
+            curl -fsSL https://github.com/ryanoasis/nerd-fonts/releases/latest/download/NerdFontsSymbolsOnly.tar.xz |
+            tar -xJ -C "$fonts" && fc-cache -f "$fonts" >/dev/null
     fi
 
     info "fzf (latest, from git — apt version is too old for 'fzf --zsh')"
@@ -585,7 +603,7 @@ setup_debian() {
     install_clipboard_history
     debian_rust_tools
     install_colima
-    common_stack ".zshrc_x86linux"
+    common_stack "zsh/zshrc_x86linux"
     use_zsh
 }
 
@@ -655,7 +673,7 @@ install_debloat_hook() {
     cat >"$dir/dotfiles-debloat" <<EOF
 #!/bin/bash
 # Installed by $DOTFILES_DIR/setup.sh
-[ -x "$DOTFILES_DIR/omarchy-debloat.sh" ] && "$DOTFILES_DIR/omarchy-debloat.sh" --yes
+[ -x "$DOTFILES_DIR/omarchy/omarchy-debloat.sh" ] && "$DOTFILES_DIR/omarchy/omarchy-debloat.sh" --yes
 EOF
     omarchy-hook-install post-update "$dir/dotfiles-debloat"
     rm -rf "$dir"
@@ -669,7 +687,7 @@ setup_arch() {
         python python-pip python-pipx
         mono jdk-openjdk mise
         github-cli fzf thefuck ripgrep fd ghostty
-        lazydocker bat gitui yazi zellij tealdeer tokei atuin uv tree-sitter-cli
+        lazydocker bat gitui yazi zellij tealdeer tokei atuin uv tree-sitter-cli ttf-nerd-fonts-symbols-mono
         docker docker-compose postgresql pre-commit obsidian lact
     )
     has_nvidia && pkgs+=(nvtop)
@@ -678,14 +696,14 @@ setup_arch() {
         info "Omarchy detected — keeping its Hyprland desktop, mpv/nautilus stack and yay"
         if ((DEBLOAT == 0)); then
             echo "Skipping the debloat pass (--no-debloat)."
-        elif [ -x "$DOTFILES_DIR/omarchy-debloat.sh" ]; then
+        elif [ -x "$DOTFILES_DIR/omarchy/omarchy-debloat.sh" ]; then
             case "$DEBLOAT_GROUPS" in
             skip) echo "Keeping Omarchy's preinstalled apps." ;;
-            default) "$DOTFILES_DIR/omarchy-debloat.sh" --yes ;;
-            all) "$DOTFILES_DIR/omarchy-debloat.sh" --yes --all ;;
+            default) "$DOTFILES_DIR/omarchy/omarchy-debloat.sh" --yes ;;
+            all) "$DOTFILES_DIR/omarchy/omarchy-debloat.sh" --yes --all ;;
             *)
                 read -r -a dgroups <<<"$DEBLOAT_GROUPS"
-                "$DOTFILES_DIR/omarchy-debloat.sh" --yes "${dgroups[@]}" ;;
+                "$DOTFILES_DIR/omarchy/omarchy-debloat.sh" --yes "${dgroups[@]}" ;;
             esac
             [ "$DEBLOAT_GROUPS" = skip ] || install_debloat_hook
         fi
@@ -723,7 +741,7 @@ setup_arch() {
     info "topgrade (AUR — not in the official repos)"
     have topgrade || arch_aur topgrade || cargo install --locked topgrade
     install_colima
-    common_stack ".zshrc_x86linux"
+    common_stack "zsh/zshrc_x86linux"
     use_zsh
 }
 

@@ -11,6 +11,8 @@ groups=()
 info() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 die()  { printf '\033[1;31m%s\033[0m\n' "$*" >&2; exit 1; }
 run()  { if ((DRY)); then printf '  [dry-run] %s\n' "$*"; else "$@"; fi; }
+stamp="$(date +%Y%m%d-%H%M%S)"
+backup() { run cp -a "$1" "$1.bak.$stamp"; }
 
 usage() {
     cat <<EOF
@@ -84,8 +86,9 @@ plainify_bindings() {
     if [ -f "$lua" ]; then
         grep -q '^omarchy_preinstalled_bindings = false' "$lua" && return 0
         grep -q '^require("default.hypr.omarchy")' "$lua" || return 0
-        info "Hyprland: preinstalled-app bindings off (backup: $lua.bak)"
-        run cp "$lua" "$lua.bak"
+        info "Hyprland: preinstalled-app bindings off (backup: $lua.bak.$stamp)"
+        backup "$lua"
+        [ -f "$binds" ] && backup "$binds"
         run sed -i 's/^require("default.hypr.omarchy")/omarchy_preinstalled_bindings = false\n&/' "$lua"
         if ((DRY)); then
             echo "  [dry-run] append Tmux + Docker bindings to $binds"
@@ -106,8 +109,8 @@ BINDS
     [ -f "$src" ] && [ -f "$dst" ] || return 0
     grep -q 'omarchy-launch-webapp' "$dst" || return 0
 
-    info "Hyprland bindings -> plain (backup: $dst.bak)"
-    run cp "$dst" "$dst.bak"
+    info "Hyprland bindings -> plain (backup: $dst.bak.$stamp)"
+    backup "$dst"
     run cp "$src" "$dst"
     if ((DRY)); then
         echo "  [dry-run] re-append Tmux + Docker bindings"
@@ -184,7 +187,7 @@ fi
 
 if has_group nvim && [ -d "$HOME/.config/nvim" ]; then
     info "Moving Omarchy's LazyVim config aside"
-    run mv "$HOME/.config/nvim" "$HOME/.config/nvim.omarchy.bak"
+    run mv "$HOME/.config/nvim" "$HOME/.config/nvim.omarchy.bak.$stamp"
 fi
 
 orphans=()

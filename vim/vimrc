@@ -38,7 +38,7 @@ nnoremap <leader>r :NERDTreeFind<CR>
 
 map gn :bn<cr>
 map gp :bp<cr>
-map gd :bp\|bd #<cr>
+nnoremap <leader>bd :bp\|bd #<cr>
 map gh :FZF<cr>
 
 nmap <C-h> <C-w>h

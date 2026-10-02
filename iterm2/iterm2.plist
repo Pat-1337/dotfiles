@@ -90,7 +90,7 @@
 	<key>NSSplitView Subview Frames NSColorPanelSplitView</key>
 	<array>
 		<string>0.000000, 0.000000, 266.000000, 300.000000, NO, NO</string>
-		<string>0.000000, 320.000000, 266.000000, 77.000000, NO, NO</string>
+		<string>0.000000, 320.000000, 266.000000, 99.000000, NO, NO</string>
 	</array>
 	<key>NSToolbar Configuration com.apple.NSColorPanel</key>
 	<dict>
@@ -630,7 +630,7 @@
 			<key>Name</key>
 			<string>Light</string>
 			<key>Non Ascii Font</key>
-			<string>Monaco 12</string>
+			<string>SymbolsNFM 18</string>
 			<key>Non-ASCII Anti Aliased</key>
 			<true/>
 			<key>Normal Font</key>
@@ -724,7 +724,7 @@
 			<key>Use Italic Font</key>
 			<true/>
 			<key>Use Non-ASCII Font</key>
-			<false/>
+			<true/>
 			<key>Use Tab Color</key>
 			<true/>
 			<key>Use Underline Color</key>
@@ -773,7 +773,7 @@
 	</array>
 	<key>NoSyncBFPRecents</key>
 	<array>
-		<string>DroidSansM Nerd Font</string>
+		<string>Symbols Nerd Font Mono</string>
 	</array>
 	<key>NoSyncClaudeCodeAutoRequestReviewBackfilled</key>
 	<true/>
@@ -810,6 +810,8 @@
 	<key>NoSyncInstallationId</key>
 	<string>D0BA1C03-0BBC-4DD6-8063-7D810191C480</string>
 	<key>NoSyncKeyCode0MitigationDisabled_C4C3440C-0EF5-49DE-B1A8-D7A52D2C9808</key>
+	<true/>
+	<key>NoSyncKeyCode0MitigationDisabled_Global</key>
 	<true/>
 	<key>NoSyncLastOSVersion</key>
 	<string>Version 27.0 (Build 26A428)</string>

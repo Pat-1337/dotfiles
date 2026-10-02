@@ -9,6 +9,9 @@
 - Services: Docker and PostgreSQL. On Linux, also colima from Homebrew.
 - CLI: ripgrep, fd, bat, fzf, atuin, zellij, yazi, gitui, lazydocker, btop,
   tealdeer, tokei, topgrade, pre-commit, tree-sitter-cli.
+- Font: Symbols Nerd Font, for the icons in Neovim. Homebrew cask on macOS,
+  `ttf-nerd-fonts-symbols-mono` on Arch, and the GitHub release in
+  `~/.local/share/fonts` on Debian.
 
 ## Apps
 

@@ -56,7 +56,7 @@ The one exception is the Xcode Command Line Tools dialog on macOS (see below).
 
 ## Order of steps
 
-1. Omarchy only: `omarchy-debloat.sh`, before any installs.
+1. Omarchy only: `omarchy/omarchy-debloat.sh`, before any installs.
 2. System packages for the platform.
 3. `common_toolchains`: uv, then rustup. This must come before the per-distro
    CLI tools, which fall back to `cargo install`.
@@ -73,18 +73,24 @@ needs node.
 
 | Repository file | Destination |
 | --- | --- |
-| `.zshrc_arm64mac` / `.zshrc_x86linux` | `~/.zshrc` |
-| `omarchy.zsh` | `~/.config/zsh/omarchy.zsh` (Omarchy only) |
-| `.vimrc` | `~/.vimrc` |
-| `nvim_dotfiles.lua` | `~/.config/nvim/plugin/dotfiles.lua` (see editors.md) |
-| `topgrade.toml` | `~/.config/topgrade.toml` (Omarchy gets a variant, see omarchy.md) |
-| `mise.toml` | `~/.config/mise/conf.d/dotfiles.toml` |
-| `zed_settings.json`, `zed_keymap.json` | `~/.config/zed/` |
-| `helix_languages.toml` | `~/.config/helix/languages.toml` |
-| `iterm2.plist` | iTerm2 preferences, through `defaults import` (macOS) |
+| `zsh/zshrc_arm64mac` / `zsh/zshrc_x86linux` | `~/.zshrc` |
+| `zsh/omarchy.zsh` | `~/.config/zsh/omarchy.zsh` (Omarchy only) |
+| `vim/vimrc` | `~/.vimrc` |
+| `nvim/dotfiles.lua` | `~/.config/nvim/plugin/dotfiles.lua` (see editors.md) |
+| `topgrade/topgrade.toml` | `~/.config/topgrade.toml` (Omarchy gets a variant, see omarchy.md) |
+| `mise/mise.toml` | `~/.config/mise/conf.d/dotfiles.toml` |
+| `zed/settings.json`, `zed/keymap.json` | `~/.config/zed/` |
+| `helix/languages.toml` | `~/.config/helix/languages.toml` |
+| `iterm2/iterm2.plist` | iTerm2 preferences, through `defaults import` (macOS) |
 
 A destination that differs from the repository copy is saved as
-`<file>.bak.<timestamp>` first.
+`<file>.bak.<timestamp>` first. An identical one is not backed up, so repeat
+runs leave no extra files. This covers every file in the table and
+`~/.config/nvim/plugin/dotfiles.lua`. The iTerm2 preferences are not a file
+in a fixed place, so they are exported and compared, and a different set is
+saved as `~/.iterm2.plist.bak.<timestamp>`. To restore it, run
+`defaults import com.googlecode.iterm2 <backup>` while iTerm2 is closed.
+`omarchy/omarchy-debloat.sh` also uses timestamps for its Hyprland and nvim backups.
 
 `~/.secrets` is created empty with mode 400 and is never copied into or out of
 this public repository.

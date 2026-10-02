@@ -9,7 +9,7 @@
   install, so they survive node upgrades.
 - Linux, Homebrew: `brew shellenv` puts brew first. Homebrew brings its own
   `llvm`, `python`, and `systemd` as colima dependencies, and they would
-  shadow the distro's copies. So `.zshrc_x86linux` moves the brew directories
+  shadow the distro's copies. So `zsh/zshrc_x86linux` moves the brew directories
   to the end of `PATH`. mise activates after that, so its tools come first.
 - macOS: the compiler search paths (`LIBRARY_PATH`, `CPATH`, ...) are tied to
   arrays. That prevents duplicates and an empty entry from a trailing colon,

@@ -3,8 +3,8 @@
 ## Detection
 
 Omarchy used to be a git checkout in `~/.local/share/omarchy`. Now it is a
-package in `/usr/share/omarchy`. `setup.sh`, `omarchy-debloat.sh`, and
-`.zshrc_x86linux` accept either location.
+package in `/usr/share/omarchy`. `setup.sh`, `omarchy/omarchy-debloat.sh`, and
+`zsh/zshrc_x86linux` accept either location.
 
 ## Package installs
 
@@ -34,7 +34,7 @@ Each skipped package is printed.
 
 ## Debloat
 
-`omarchy-debloat.sh` removes the preinstalled app layer. Omarchy's own
+`omarchy/omarchy-debloat.sh` removes the preinstalled app layer. Omarchy's own
 `omarchy-remove-preinstalls` also removes claude-code and lazydocker, which
 this repository installs on purpose. This script keeps those and obsidian, plus
 everything the Hyprland desktop needs (gum, impala, bluetui, wiremix,
@@ -42,10 +42,10 @@ nautilus, mpv, imv, gpu-screen-recorder), the Disk Usage and Docker TUI
 launchers, and the CUPS printing stack.
 
 ```sh
-./omarchy-debloat.sh --dry-run      # show, change nothing
-./omarchy-debloat.sh                # default groups, asks first
-./omarchy-debloat.sh --all --yes
-./omarchy-debloat.sh dotnet nvim    # only these groups
+./omarchy/omarchy-debloat.sh --dry-run    # show, change nothing
+./omarchy/omarchy-debloat.sh              # default groups, asks first
+./omarchy/omarchy-debloat.sh --all --yes
+./omarchy/omarchy-debloat.sh dotnet nvim  # only these groups
 ```
 
 Default groups:
@@ -67,7 +67,7 @@ package cannot abort the transaction. Orphans are removed afterwards.
   `omarchy-npx-install`, never a binary you installed yourself.
 - Keybindings: the removed apps still have keybindings. On current Omarchy
   (Lua config), the script sets `omarchy_preinstalled_bindings = false` in
-  `~/.config/hypr/hyprland.lua` (backup: `hyprland.lua.bak`), and adds Tmux
+  `~/.config/hypr/hyprland.lua` (backup: `hyprland.lua.bak.<timestamp>`, and the same for `bindings.lua`), and adds Tmux
   (SUPER ALT RETURN) and Docker (SUPER SHIFT D) back to `bindings.lua`. On
   older Omarchy, `bindings.conf` is replaced with Omarchy's
   `plain-bindings.conf` plus the same two bindings.
@@ -85,7 +85,7 @@ package cannot abort the transaction. Orphans are removed afterwards.
 
 ## Updates (topgrade)
 
-On Omarchy, `setup.sh` installs a variant of `topgrade.toml`:
+On Omarchy, `setup.sh` installs a variant of `topgrade/topgrade.toml`:
 
 - The `system` step is disabled, because the update guard would abort its
   `pacman -Syu`.
@@ -122,7 +122,7 @@ sudo snapper -c root --csvout list --columns number | tail -n +2 | grep -vx 0 |
 ## From bash to zsh
 
 Omarchy configures bash through `~/.bashrc`, which reads
-`$OMARCHY_PATH/default/bash`. `omarchy.zsh` gives zsh the same setup. It reads
+`$OMARCHY_PATH/default/bash`. `zsh/omarchy.zsh` gives zsh the same setup. It reads
 Omarchy's files where zsh can, so Omarchy updates apply without changes here:
 
 | Omarchy bash file | In zsh |

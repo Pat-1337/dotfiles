@@ -4,7 +4,7 @@
 
 | Runtime | Tool |
 | --- | --- |
-| Node, pnpm, Bun, Go | mise (`mise.toml`) |
+| Node, pnpm, Bun, Go | mise (`mise/mise.toml`) |
 | Python and Python packages | uv (plus `ty`) |
 | Rust | rustup |
 | Java, mono | system packages |
@@ -18,22 +18,22 @@
 
 ## mise config files
 
-- `mise.toml` goes to `~/.config/mise/conf.d/dotfiles.toml`.
+- `mise/mise.toml` goes to `~/.config/mise/conf.d/dotfiles.toml`.
 - `~/.config/mise/config.toml` belongs to the machine. Omarchy keeps its tools
   there (codex, gh, cursor-agent, ...), and `mise use -g` writes to it.
   `config.toml` overrides `conf.d`, so a pin there beats this repository.
 - `/etc/mise/conf.d/omarchy.toml` holds Omarchy's system-wide settings.
-- `[settings]` in `mise.toml`: `vcpkg` is disabled, because it came in through
+- `[settings]` in `mise/mise.toml`: `vcpkg` is disabled, because it came in through
   brew without `VCPKG_ROOT` and asks for sudo.
 
-Older versions of `setup.sh` copied `mise.toml` over `config.toml`.
+Older versions of `setup.sh` copied `mise/mise.toml` over `config.toml`.
 `release_mise_config` compares `config.toml` with every committed version of
-`mise.toml`. If `config.toml` starts with one of them, that part is removed.
+`mise/mise.toml`. If `config.toml` starts with one of them, that part is removed.
 Anything added after it is kept, and the old file is backed up.
 
 ## Updates
 
-`update` is an alias for `topgrade`. `topgrade.toml`:
+`update` is an alias for `topgrade`. `topgrade/topgrade.toml`:
 
 - `assume_yes` and `no_retry`: no prompts, so it can run unattended.
 - The built-in `mise` step is disabled. It runs `mise self-update` first,

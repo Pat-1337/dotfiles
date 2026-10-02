@@ -11,6 +11,7 @@
   exits when NERDTree is the last window. A buffer that tries to replace
   NERDTree opens in the other window instead.
 - Tabs are 4 columns and expand to spaces.
+- `,bd` closes a buffer. `gd` is Vim's own.
 - In MacVim, the colors are 24-bit with a light background.
 
 ## Neovim
@@ -18,15 +19,56 @@
 `setup.sh` installs kickstart.nvim only when `~/.config/nvim` does not exist.
 On Omarchy, that directory holds Omarchy's LazyVim, so it is kept. To use
 kickstart there, run the debloat `nvim` group, which moves LazyVim to
-`~/.config/nvim.omarchy.bak`, and then run `setup.sh` again.
+`~/.config/nvim.omarchy.bak.<timestamp>`, and then run `setup.sh` again.
 
-Every run copies `nvim_dotfiles.lua` to `~/.config/nvim/plugin/dotfiles.lua`,
+Every run copies `nvim/dotfiles.lua` to `~/.config/nvim/plugin/dotfiles.lua`,
 which loads after `init.lua`. It mirrors the Vim settings above: relative
-line numbers, 4-column tabs, `scrolloff=5`, and the `gn`/`gp`/`gd` buffer
-maps. `gh` opens Telescope file search where Telescope exists, so LazyVim
-does not get it. `<Space>tn` opens a new tab, and `gd` in a tab with one
-window closes the tab too. netrw's own `Ctrl-h` and `Ctrl-l` keys are turned
-off, so those keys move between windows everywhere.
+line numbers, 4-column tabs, `scrolloff=5`, and `gn`/`gp` to change buffers.
+`gh` opens Telescope file search where Telescope exists, so LazyVim does not
+get it. `<Space>bd` closes a buffer, and the tab too when the tab has one
+window. `<Space>tn` opens a new tab. netrw's own `Ctrl-h` and `Ctrl-l` keys
+are turned off, so those keys move between windows everywhere.
+
+The LSP keys follow Zed's vim mode: `gd` definition, `gD` declaration, `gy`
+type definition, `gI` implementation, `gA` references, `g.` code actions,
+`gs`/`gS` file and project symbols, `cd` rename, `g]`/`g[` diagnostics, and `K`
+hover. They exist only in buffers with a language server, so `gd` elsewhere is
+Vim's own. Python uses `ty` and `ruff`, as in Zed. Each one starts if it is
+on `PATH`. ruff's hover is off, because ty already answers it. Rust uses
+rust-analyzer from rustup (`setup.sh` adds the component), with
+`~/.cargo/bin` first on its `PATH`: a Homebrew `rust` would otherwise win, and
+it has no `rust-src`, so the standard library would not resolve.
+
+Icons need a Nerd Font. `setup.sh` installs Symbols Nerd Font, which holds only
+the icons, and the iTerm2 profile uses it as the non-ASCII font, so text stays
+in Menlo. That setting is required. Without it, macOS finds the font on its own
+only for the icons above U+FFFF (Rust, Python, Markdown). The folder and most
+file icons are in U+E000 to U+F8FF, and those show as `?` boxes. Kickstart
+reads `have_nerd_font` before `nvim/dotfiles.lua` runs, so that file sets it
+and turns the icons on in mini.icons and the statusline.
+
+A Neo-tree file tree sits on the left, as NERDTree does in Vim. It opens at
+start. With a file argument the cursor goes to the file, and otherwise it stays
+in the tree. It follows the current file, and nvim quits when the tree is the
+last window. `:q` in the tree also quits when the only other window holds the
+empty buffer that nvim starts with. With a file open, it closes only the tree.
+Each new tab gets its own copy of the tree, because Vim tabs cannot share a
+window. `Shift+Enter` (or `t`) in the tree opens a file in a new tab.
+Shift+Enter needs a terminal that reports it apart from Enter. `<Space>tw`
+saves the files in the current tab only. `<Space>tq` closes the tab and
+discards its unsaved changes. In the last tab it quits, but still asks about
+unsaved files in other buffers. Plain `:q!` does not close a tab cleanly,
+because Neo-tree refuses to close a tree beside a modified file, and
+`:tabclose!` keeps the changes in memory. `Tab` reveals the current file in the
+tree, as Zed's `RevealInProjectPanel` does, and `Tab` in the tree goes back. In
+the tree, `Enter` opens a file, and the keys follow the Zed project panel
+keymap: `a` new file, `A` new directory, `r` rename, `d` delete, `x` cut, `c`
+copy, `p` paste, `h`/`l`/`o` and `zc`/`zo` collapse and expand, `Y` and `gy`
+copy the relative and full path. `/` filters the tree by name. `gh` searches
+all files.
+
+In netrw (`:Ex`), `gh` searches the browsed directory, and `g.` shows or hides
+dot-files, because netrw's own `gh` did that.
 
 The theme is Kanagawa Wave in dark mode and Dayfox in light mode. On a local
 Mac, auto-dark-mode.nvim follows the system appearance, including the Auto
@@ -37,7 +79,7 @@ own theme.
 
 ## Helix
 
-`helix_languages.toml` sets a new source for the `gotmpl` grammar. Helix
+`helix/languages.toml` sets a new source for the `gotmpl` grammar. Helix
 25.07.1 pins it to `dannylongeuay/tree-sitter-go-template`, which has been
 deleted, so `hx --grammar fetch` fails. Upstream moved it to `ngalaiko`.
 Remove this block when a Helix release has the new source.
