@@ -20,9 +20,13 @@ A question is skipped when its answer is already on the machine:
   would otherwise be asked on every run.
 - GitHub login: `gh auth status` succeeds. It usually does, because cloning
   this repository needed it.
+- Cloudflare DNS: every network service already uses `1.1.1.1`. The default
+  answer is yes. Say no on a company network, because its DNS often resolves
+  internal hostnames that Cloudflare cannot.
 
 Preset any answer through the environment: `GIT_NAME`, `GIT_EMAIL`,
-`GIT_WORK_DIR`, `GIT_WORK_EMAIL`, `DEBLOAT_GROUPS`, `AUTH_GH`. Run
+`GIT_WORK_DIR`, `GIT_WORK_EMAIL`, `DEBLOAT_GROUPS`, `AUTH_GH`, `DNS`
+(`cloudflare` or `keep`). Run
 `./setup.sh </dev/null` to skip all questions. The script then keeps what is
 already configured. It never writes an empty email.
 
@@ -49,9 +53,10 @@ The one exception is the Xcode Command Line Tools dialog on macOS (see below).
   can come back (see `resudo`). If sudo already works without a password, no
   prompt is shown.
 - macOS: no prompt up front. Homebrew runs `sudo --reset-timestamp` on every
-  brew command, so an early credential never survives to the one step that
-  needs it (the Java symlink). `resudo` asks at the point of use, and only when
-  the credential is really gone.
+  brew command, so an early credential never survives to the steps that need
+  it: the Java symlink, and the DNS change right after it, so one prompt covers
+  both. `resudo` asks at the point of use, and only when the credential is
+  really gone.
 - Never run the script with sudo. It refuses to run as root.
 
 ## Order of steps
@@ -64,7 +69,8 @@ The one exception is the Xcode Command Line Tools dialog on macOS (see below).
 5. `common_stack`: `~/Developer/bin`, git identity, Claude Code, Oh My Zsh,
    dotfiles, mise runtimes, Vim + YouCompleteMe, Neovim.
 6. `use_zsh` (Linux).
-7. `topgrade -y`, then the optional GitHub login.
+7. Cloudflare DNS (Linux; macOS does it next to the Java symlink).
+8. `topgrade -y`, then the optional GitHub login.
 
 mise runs before Vim, because YouCompleteMe builds a JavaScript completer and
 needs node.
@@ -173,3 +179,20 @@ missing. Log out and in after the change.
   updates it. See [shell.md](shell.md) for why brew goes last on `PATH`.
 - `~/Developer/bin` is the macOS convention. Both `.zshrc` files put it on
   `PATH`, so the layout is the same on Linux.
+
+## DNS
+
+The servers are `1.1.1.1`, `1.0.0.1`, `2606:4700:4700::1111`, and
+`2606:4700:4700::1001`. Each system sets them where its own DHCP answers would
+otherwise go:
+
+- macOS: `networksetup -setdnsservers` on each enabled service that has a
+  device. VPN services have none, so a VPN keeps the DNS it supplies. The old
+  servers are printed first. To undo, run
+  `sudo networksetup -setdnsservers Wi-Fi empty`.
+- Linux with NetworkManager: the active Ethernet and Wi-Fi connections get the
+  servers and `ignore-auto-dns`, then `nmcli device reapply`. To undo, set
+  `ipv4.ignore-auto-dns no` and `ipv6.ignore-auto-dns no` again.
+- Linux with only systemd-resolved, as on Omarchy:
+  `/etc/systemd/resolved.conf.d/cloudflare.conf`, with `Domains=~.` so these
+  servers win over the per-link ones. Delete the file to undo.

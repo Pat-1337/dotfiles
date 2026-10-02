@@ -16,6 +16,9 @@ You can run it again at any time.
 
 On Omarchy, add `--no-debloat` to keep the preinstalled apps.
 
+On Windows, `windows/setup.ps1` makes a few tweaks. See
+[docs/windows.md](docs/windows.md).
+
 ## Docs
 
 For all details, see [docs/](docs/README.md).

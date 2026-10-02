@@ -60,18 +60,21 @@ collect_inputs() {
     GIT_WORK_EMAIL="${GIT_WORK_EMAIL:-}"
     DEBLOAT_GROUPS="${DEBLOAT_GROUPS:-default}"
     AUTH_GH="${AUTH_GH:-ask}"
+    DNS="${DNS:-ask}"
 
     if [ "$AUTH_GH" = ask ] && have gh && gh auth status >/dev/null 2>&1; then
         AUTH_GH=authed
     fi
+    [ "$DNS" = ask ] && uses_cloudflare_dns && DNS=already
 
     if [ ! -t 0 ]; then
         info "Non-interactive — keeping the existing git identity and default groups"
         [ "$AUTH_GH" = ask ] && AUTH_GH=no
+        [ "$DNS" = ask ] && DNS=keep
         return 0
     fi
 
-    local ask_identity=0 ask_work=0 ask_debloat=0 ask_gh=0
+    local ask_identity=0 ask_work=0 ask_debloat=0 ask_gh=0 ask_dns=0
     { [ -n "$GIT_NAME" ] && [ -n "$GIT_EMAIL" ]; } || ask_identity=1
 
     if [ -n "$GIT_WORK_DIR" ]; then
@@ -82,8 +85,9 @@ collect_inputs() {
 
     is_omarchy && ((DEBLOAT)) && ask_debloat=1
     [ "$AUTH_GH" = ask ] && ask_gh=1
+    [ "$DNS" = ask ] && ask_dns=1
 
-    if ((ask_identity || ask_work || ask_debloat || ask_gh)); then
+    if ((ask_identity || ask_work || ask_debloat || ask_gh || ask_dns)); then
         info "Setup questions (everything after this runs unattended)"
     fi
 
@@ -111,6 +115,13 @@ collect_inputs() {
         esac
     fi
 
+    if ((ask_dns)); then
+        case "$(ask "Use Cloudflare DNS (1.1.1.1)? Breaks a company network's internal hostnames (y/n)" y)" in
+        [yY]*) DNS=cloudflare ;;
+        *) DNS=keep ;;
+        esac
+    fi
+
     echo
     echo "  git identity   : ${GIT_NAME:-<unset>} <${GIT_EMAIL:-unset}>"
     if [ -n "$GIT_WORK_DIR" ]; then
@@ -123,8 +134,12 @@ collect_inputs() {
     authed) echo "  github login   : already authenticated" ;;
     *) echo "  github login   : $AUTH_GH" ;;
     esac
+    case "$DNS" in
+    already) echo "  dns            : already Cloudflare" ;;
+    *) echo "  dns            : $DNS" ;;
+    esac
 
-    if ((ask_identity || ask_work || ask_debloat || ask_gh)); then
+    if ((ask_identity || ask_work || ask_debloat || ask_gh || ask_dns)); then
         read -r -p "
 Press Enter to start, Ctrl-C to abort. " </dev/tty
     fi
@@ -140,6 +155,58 @@ sudo_keepalive() {
 }
 
 resudo() { sudo -n true 2>/dev/null || sudo -v; }
+
+CLOUDFLARE_DNS=(1.1.1.1 1.0.0.1 2606:4700:4700::1111 2606:4700:4700::1001)
+
+mac_network_services() {
+    networksetup -listnetworkserviceorder | awk '
+        /^\(\*\)/ { name = "" }
+        /^\([0-9]+\) / { name = $0; sub(/^\([0-9]+\) /, "", name) }
+        /Device: [^)]/ && name != "" { print name; name = "" }'
+}
+
+uses_cloudflare_dns() {
+    if [ "$(uname -s)" = Darwin ]; then
+        local svc
+        while IFS= read -r svc; do
+            networksetup -getdnsservers "$svc" | grep -qx 1.1.1.1 || return 1
+        done < <(mac_network_services)
+        return 0
+    fi
+    { resolvectl dns 2>/dev/null; cat /etc/resolv.conf 2>/dev/null; } | grep -q '1\.1\.1\.1'
+}
+
+set_cloudflare_dns() {
+    info "DNS: Cloudflare (${CLOUDFLARE_DNS[*]})"
+    resudo
+    if [ "$(uname -s)" = Darwin ]; then
+        local svc was
+        while IFS= read -r svc; do
+            was="$(networksetup -getdnsservers "$svc" | grep -E '^[0-9a-f:.]+$' | tr '\n' ' ')"
+            echo "  $svc (was: ${was:-automatic})"
+            sudo networksetup -setdnsservers "$svc" "${CLOUDFLARE_DNS[@]}"
+        done < <(mac_network_services)
+        sudo dscacheutil -flushcache
+        sudo killall -HUP mDNSResponder 2>/dev/null || true
+    elif have nmcli && [ "$(nmcli -t -f RUNNING general 2>/dev/null)" = running ]; then
+        local con dev
+        while IFS=: read -r con dev; do
+            echo "  $con ($dev)"
+            sudo nmcli connection modify "$con" \
+                ipv4.dns "${CLOUDFLARE_DNS[0]} ${CLOUDFLARE_DNS[1]}" ipv4.ignore-auto-dns yes \
+                ipv6.dns "${CLOUDFLARE_DNS[2]} ${CLOUDFLARE_DNS[3]}" ipv6.ignore-auto-dns yes
+            sudo nmcli device reapply "$dev" >/dev/null || true
+        done < <(nmcli -t -f NAME,DEVICE,TYPE connection show --active |
+            awk -F: '$3 ~ /ethernet|wireless|wifi/ {print $1 ":" $2}')
+    elif systemctl is-active --quiet systemd-resolved; then
+        sudo mkdir -p /etc/systemd/resolved.conf.d
+        printf '[Resolve]\nDNS=%s\nDomains=~.\n' "${CLOUDFLARE_DNS[*]}" |
+            sudo tee /etc/systemd/resolved.conf.d/cloudflare.conf >/dev/null
+        sudo systemctl restart systemd-resolved
+    else
+        echo "Neither NetworkManager nor systemd-resolved runs here, so DNS is unchanged." >&2
+    fi
+}
 
 configure_git() {
     [ -n "$GIT_NAME" ] || return 0
@@ -414,10 +481,11 @@ setup_macos() {
     jdk="$prefix/opt/openjdk/libexec/openjdk.jdk"
     link=/Library/Java/JavaVirtualMachines/openjdk.jdk
     if [ "$(readlink "$link" 2>/dev/null)" != "$jdk" ]; then
-        info "Java symlink (the only step on macOS that needs root)"
+        info "Java symlink (needs root)"
         resudo
         sudo ln -sfn "$jdk" "$link"
     fi
+    [ "$DNS" = cloudflare ] && set_cloudflare_dns
     export PATH="$prefix/opt/openjdk/bin:$PATH"
 
     info "Casks (zed, iterm2, obsidian, helium, maccy, Nerd Font symbols)"
@@ -756,6 +824,8 @@ Linux)
     fi ;;
 *) echo "Unsupported OS: $(uname -s)" >&2; exit 1 ;;
 esac
+
+[ "$(uname -s)" = Linux ] && [ "$DNS" = cloudflare ] && set_cloudflare_dns
 
 if have topgrade; then
     info "Upgrading existing packages (topgrade)"

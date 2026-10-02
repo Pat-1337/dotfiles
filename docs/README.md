@@ -11,3 +11,4 @@ are here instead.
 | [runtimes.md](runtimes.md) | mise, uv, rustup, and how topgrade updates them |
 | [editors.md](editors.md) | Vim, Neovim, Helix, Zed |
 | [tools.md](tools.md) | What gets installed: tools, apps, clipboard, hardware monitors, Cider |
+| [windows.md](windows.md) | `windows/setup.ps1`: context menu, OneDrive removal, Cloudflare DNS |
