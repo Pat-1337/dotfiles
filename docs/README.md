@@ -10,5 +10,6 @@ are here instead.
 | [shell.md](shell.md) | What the `.zshrc` files do, and why |
 | [runtimes.md](runtimes.md) | mise, uv, rustup, and how topgrade updates them |
 | [editors.md](editors.md) | Vim, Neovim, Helix, Zed |
+| [nvim-keys.md](nvim-keys.md) | Cheatsheet: the Neovim keys this repository adds or changes |
 | [tools.md](tools.md) | What gets installed: tools, apps, clipboard, hardware monitors, Cider |
 | [windows.md](windows.md) | `windows/setup.ps1`: context menu, OneDrive removal, Cloudflare DNS |

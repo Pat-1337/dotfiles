@@ -31,6 +31,24 @@ if pcall(require, 'telescope.builtin') then
 end
 vim.keymap.set('n', '<leader>tn', '<cmd>tabnew<CR>', { desc = '[T]ab [N]ew' })
 
+local function jump_file(back)
+  if vim.bo.filetype == 'neo-tree' then vim.cmd.wincmd 'p' end
+  local list, idx = unpack(vim.fn.getjumplist())
+  local pos, current = idx + 1, vim.api.nvim_get_current_buf()
+  local first, last, step = pos + 1, #list, 1
+  if back then first, last, step = pos - 1, 1, -1 end
+  for i = first, last, step do
+    local buf = list[i].bufnr
+    if buf ~= current and vim.api.nvim_buf_is_valid(buf) and vim.bo[buf].buftype == '' then
+      while not back and list[i + 1] and list[i + 1].bufnr == buf do i = i + 1 end
+      local keys = back and '\15' or '\t'
+      return vim.cmd('normal! ' .. math.abs(i - pos) .. keys)
+    end
+  end
+end
+vim.keymap.set('n', '<C-o>', function() jump_file(true) end, { desc = 'Back to the previous file' })
+vim.keymap.set('n', '<C-p>', function() jump_file(false) end, { desc = 'Forward to the next file' })
+
 local function tab_files()
   local bufs = {}
   for _, w in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
@@ -56,11 +74,35 @@ end, { desc = '[T]ab [Q]uit: close this tab, discarding its changes' })
 vim.keymap.set('n', '<Plug>(dotfiles-netrw-hide)', '<Plug>NetrwHideEdit')
 vim.keymap.set('n', '<Plug>(dotfiles-netrw-refresh)', '<Plug>NetrwRefresh')
 
+local function blend(fg, bg, alpha)
+  local out = 0
+  for _, shift in ipairs { 16, 8, 0 } do
+    local a, b = bit.band(bit.rshift(fg, shift), 255), bit.band(bit.rshift(bg, shift), 255)
+    out = out + bit.lshift(math.floor(a * alpha + b * (1 - alpha) + 0.5), shift)
+  end
+  return out
+end
+local function faint_colors()
+  local normal = vim.api.nvim_get_hl(0, { name = 'Normal', link = false })
+  local function faint(group, alpha, italic)
+    if normal.fg and normal.bg then
+      vim.api.nvim_set_hl(0, group, { fg = blend(normal.fg, normal.bg, alpha), italic = italic })
+    else
+      vim.api.nvim_set_hl(0, group, { link = 'Comment' })
+    end
+  end
+  faint('GitSignsCurrentLineBlame', 0.45, false)
+  faint('LspInlayHint', 0.55, true)
+end
+faint_colors()
+vim.api.nvim_create_autocmd('ColorScheme', { group = vim.api.nvim_create_augroup('dotfiles-faint', { clear = true }), callback = faint_colors })
+
 vim.api.nvim_create_autocmd('LspAttach', {
   group = vim.api.nvim_create_augroup('dotfiles-lsp-keys', { clear = true }),
   callback = function(ev)
     local client = vim.lsp.get_client_by_id(ev.data.client_id)
     if client and client.name == 'ruff' then client.server_capabilities.hoverProvider = false end
+    if client and client:supports_method 'textDocument/inlayHint' then vim.lsp.inlay_hint.enable(true, { bufnr = ev.buf }) end
     local has_tb, tb = pcall(require, 'telescope.builtin')
     local function map(lhs, fn, desc) vim.keymap.set('n', lhs, fn, { buffer = ev.buf, desc = desc }) end
     map('gd', has_tb and tb.lsp_definitions or vim.lsp.buf.definition, 'Go to definition')
@@ -164,6 +206,14 @@ if vim.pack and not package.loaded.lazy then
       vim.cmd(file_arg and 'Neotree show' or 'Neotree')
     end,
   })
+
+  local has_gitsigns, gitsigns = pcall(require, 'gitsigns')
+  if has_gitsigns then
+    local config = require('gitsigns.config').config
+    config.current_line_blame_opts = { delay = 300 }
+    config.current_line_blame_formatter = '    <author>, <author_time:%R> • <summary>'
+    gitsigns.toggle_current_line_blame(true)
+  end
 
   local themes = { dark = 'kanagawa-wave', light = 'dayfox' }
   local current

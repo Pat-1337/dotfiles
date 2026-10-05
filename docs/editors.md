@@ -22,25 +22,33 @@ kickstart there, run the debloat `nvim` group, which moves LazyVim to
 `~/.config/nvim.omarchy.bak.<timestamp>`, and then run `setup.sh` again.
 
 Every run copies `nvim/dotfiles.lua` to `~/.config/nvim/plugin/dotfiles.lua`,
-which loads after `init.lua`. It mirrors the Vim settings above: relative
-line numbers, 4-column tabs, `scrolloff=5`, and `gn`/`gp` to change buffers.
-`gh` opens Telescope file search where Telescope exists, so LazyVim does not
-get it. `<Space>bd` closes a buffer, and the tab too when the tab has one
-window. `<Space>tn` opens a new tab. netrw's own `Ctrl-h` and `Ctrl-l` keys
-are turned off, so those keys move between windows everywhere.
+which loads after `init.lua`. It mirrors the Vim settings above: relative line
+numbers, 4-column tabs, `scrolloff=5`, and `gn`/`gp` to change buffers. `gh`
+opens Telescope file search where Telescope exists, so LazyVim does not get it.
+`<Space>bd` closes a buffer, and the tab too when the tab has one window.
+`<Space>tn` opens a new tab. `Ctrl-o` and `Ctrl-p` go back and forward through
+the files in the jump list and skip jumps inside one file, as Zed's back and
+forward do. They land where you left each file. `Ctrl-p` stands in for
+`Ctrl-i`, which the terminal sends as `Tab`. Within one file, `''` goes back to
+the last jump, and `g;` and `g,` walk the change list. netrw's own `Ctrl-h` and
+`Ctrl-l` keys are turned off, so those keys move between windows everywhere.
 
 The LSP keys follow Zed's vim mode: `gd` definition, `gD` declaration, `gy`
 type definition, `gI` implementation, `gA` references, `g.` code actions,
 `gs`/`gS` file and project symbols, `cd` rename, `g]`/`g[` diagnostics, and `K`
 hover. They exist only in buffers with a language server, so `gd` elsewhere is
 Vim's own. Python uses `ty` and `ruff`, as in Zed. Each one starts if it is on
-`PATH`. ruff's hover is off, because ty already answers it. Rust uses
-rust-analyzer from rustup (`setup.sh` adds the component), with `~/.cargo/bin`
-first on its `PATH`: a Homebrew `rust` would otherwise win, and it has no
-`rust-src`, so the standard library would not resolve. Shell scripts use
-bash-language-server, with shellcheck for warnings and shfmt for formatting.
-Kickstart's Mason installs all three on the first start, and the server starts
-when its install ends.
+`PATH`. ruff's hover is off, because ty already answers it. Inlay hints are on
+for every server that has them, as in Zed: ty adds variable types
+(`Self@from_crawler`) and argument names (`users=`) inline, and rust-analyzer
+does the same for Rust. They are italic, in 55% of the text color blended into
+the background, set again on every theme change. `<Space>th` turns them off and
+on. Rust uses rust-analyzer from rustup (`setup.sh` adds the component), with
+`~/.cargo/bin` first on its `PATH`: a Homebrew `rust` would otherwise win, and
+it has no `rust-src`, so the standard library would not resolve. Shell scripts
+use bash-language-server, with shellcheck for warnings and shfmt for
+formatting. Kickstart's Mason installs all three on the first start, and the
+server starts when its install ends.
 
 Icons need a Nerd Font. `setup.sh` installs Symbols Nerd Font, which holds only
 the icons, and the iTerm2 profile uses it as the non-ASCII font, so text stays
@@ -72,6 +80,12 @@ all files.
 
 In netrw (`:Ex`), `gh` searches the browsed directory, and `g.` shows or hides
 dot-files, because netrw's own `gh` did that.
+
+Inline git blame shows on the cursor line after 300 ms, as Zed does: `author,
+time ago • summary` after the end of the line. Its color is 45% of the theme's
+text color blended into the background, with no background of its own, so it
+reads as faint text over the cursor line too. It is set again on every theme
+change. `<Space>tb` turns it off and on.
 
 The theme is Kanagawa Wave in dark mode and Dayfox in light mode. On a local
 Mac, auto-dark-mode.nvim follows the system appearance, including the Auto
