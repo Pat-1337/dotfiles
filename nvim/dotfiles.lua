@@ -17,6 +17,8 @@ vim.keymap.set('n', '<leader>bd', function()
 end, { desc = '[B]uffer [D]elete; closes a single-window tab' })
 if pcall(require, 'telescope.builtin') then
   vim.keymap.set('n', 'gh', function() require('telescope.builtin').find_files() end, { desc = 'Find files' })
+  vim.keymap.set('n', 'g/', function() require('telescope.builtin').live_grep() end, { desc = 'Search the project' })
+  vim.keymap.set('x', 'g/', function() require('telescope.builtin').grep_string() end, { desc = 'Search the project for the selection' })
   vim.cmd [[
     function! DotfilesNetrwFind(islocal) abort
       lua require('telescope.builtin').find_files { cwd = vim.b.netrw_curdir }
@@ -93,9 +95,56 @@ local function faint_colors()
   end
   faint('GitSignsCurrentLineBlame', 0.45, false)
   faint('LspInlayHint', 0.55, true)
+  faint('DotfilesWinbarDir', 0.6, false)
 end
 faint_colors()
 vim.api.nvim_create_autocmd('ColorScheme', { group = vim.api.nvim_create_augroup('dotfiles-faint', { clear = true }), callback = faint_colors })
+
+local function project_path(buf)
+  local name = vim.api.nvim_buf_get_name(buf)
+  local root = vim.fs.root(buf, '.git') or vim.fn.getcwd()
+  return vim.fs.relpath(root, name) or vim.fn.fnamemodify(name, ':~')
+end
+
+local function human_size(bytes)
+  if bytes < 0 then return 'new file' end
+  for _, unit in ipairs { 'B', 'KiB', 'MiB' } do
+    if bytes < 1024 or unit == 'MiB' then return (unit == 'B' and '%d %s' or '%.1f %s'):format(bytes, unit) end
+    bytes = bytes / 1024
+  end
+end
+
+function DotfilesWinbar(win)
+  if not vim.api.nvim_win_is_valid(win) then return '' end
+  local buf = vim.api.nvim_win_get_buf(win)
+  local path = project_path(buf):gsub('%%', '%%%%')
+  local dir, file = path:match '^(.*/)([^/]+)$'
+  if not dir then dir, file = '', path end
+  local encoding = vim.bo[buf].fileencoding ~= '' and vim.bo[buf].fileencoding or vim.o.encoding
+  local meta = ('%s  %s %s'):format(human_size(vim.fn.getfsize(vim.api.nvim_buf_get_name(buf))), encoding, vim.bo[buf].fileformat)
+  return (' %%#DotfilesWinbarDir#%s%%*%s%s%%=%%#DotfilesWinbarDir#%s '):format(dir, file, vim.bo[buf].modified and ' ●' or '', meta)
+end
+
+local function set_winbar(win)
+  local buf = vim.api.nvim_win_get_buf(win)
+  local file = vim.bo[buf].buftype == '' and vim.api.nvim_buf_get_name(buf) ~= '' and vim.api.nvim_win_get_config(win).relative == ''
+  vim.wo[win].winbar = file and ('%%{%%v:lua.DotfilesWinbar(%d)%%}'):format(win) or ''
+end
+vim.api.nvim_create_autocmd({ 'BufWinEnter', 'FileType', 'WinEnter', 'VimEnter' }, {
+  group = vim.api.nvim_create_augroup('dotfiles-winbar', { clear = true }),
+  callback = function()
+    for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do set_winbar(win) end
+  end,
+})
+
+local function copy_file_path(absolute)
+  local buf = vim.api.nvim_get_current_buf()
+  local path = absolute and vim.api.nvim_buf_get_name(buf) or project_path(buf)
+  vim.fn.setreg('+', path)
+  vim.notify('Copied ' .. path)
+end
+vim.keymap.set('n', '<leader>yr', function() copy_file_path(false) end, { desc = '[Y]ank [R]elative path' })
+vim.keymap.set('n', '<leader>ya', function() copy_file_path(true) end, { desc = '[Y]ank [A]bsolute path' })
 
 vim.api.nvim_create_autocmd('LspAttach', {
   group = vim.api.nvim_create_augroup('dotfiles-lsp-keys', { clear = true }),
@@ -162,6 +211,7 @@ if vim.pack and not package.loaded.lazy then
     close_if_last_window = true,
     window = {
       position = 'left',
+      width = 30,
       mappings = {
         ['<Tab>'] = back,
         ['<S-CR>'] = 'open_tabnew',

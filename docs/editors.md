@@ -25,13 +25,15 @@ Every run copies `nvim/dotfiles.lua` to `~/.config/nvim/plugin/dotfiles.lua`,
 which loads after `init.lua`. It mirrors the Vim settings above: relative line
 numbers, 4-column tabs, `scrolloff=5`, and `gn`/`gp` to change buffers. `gh`
 opens Telescope file search where Telescope exists, so LazyVim does not get it.
-`<Space>bd` closes a buffer, and the tab too when the tab has one window.
-`<Space>tn` opens a new tab. `Ctrl-o` and `Ctrl-p` go back and forward through
-the files in the jump list and skip jumps inside one file, as Zed's back and
-forward do. They land where you left each file. `Ctrl-p` stands in for
-`Ctrl-i`, which the terminal sends as `Tab`. Within one file, `''` goes back to
-the last jump, and `g;` and `g,` walk the change list. netrw's own `Ctrl-h` and
-`Ctrl-l` keys are turned off, so those keys move between windows everywhere.
+`g/` searches the whole project for text with Telescope's live grep (ripgrep),
+as in Zed. In visual mode it searches for the selection. `<Space>bd` closes a
+buffer, and the tab too when the tab has one window. `<Space>tn` opens a new
+tab. `Ctrl-o` and `Ctrl-p` go back and forward through the files in the jump
+list and skip jumps inside one file, as Zed's back and forward do. They land
+where you left each file. `Ctrl-p` stands in for `Ctrl-i`, which the terminal
+sends as `Tab`. Within one file, `''` goes back to the last jump, and `g;` and
+`g,` walk the change list. netrw's own `Ctrl-h` and `Ctrl-l` keys are turned
+off, so those keys move between windows everywhere.
 
 The LSP keys follow Zed's vim mode: `gd` definition, `gD` declaration, `gy`
 type definition, `gI` implementation, `gA` references, `g.` code actions,
@@ -58,17 +60,17 @@ file icons are in U+E000 to U+F8FF, and those show as `?` boxes. Kickstart
 reads `have_nerd_font` before `nvim/dotfiles.lua` runs, so that file sets it
 and turns the icons on in mini.icons and the statusline.
 
-A Neo-tree file tree sits on the left, as NERDTree does in Vim. It opens at
-start. With a file argument the cursor goes to the file, and otherwise it stays
-in the tree. It follows the current file, and nvim quits when the tree is the
-last window. `:q` in the tree also quits when the only other window holds the
-empty buffer that nvim starts with. With a file open, it closes only the tree.
-Each new tab gets its own copy of the tree, because Vim tabs cannot share a
-window. `Shift+Enter` (or `t`) in the tree opens a file in a new tab.
-Shift+Enter needs a terminal that reports it apart from Enter. `<Space>tw`
-saves the files in the current tab only. `<Space>tq` closes the tab and
-discards its unsaved changes. In the last tab it quits, but still asks about
-unsaved files in other buffers. Plain `:q!` does not close a tab cleanly,
+A Neo-tree file tree, 30 columns wide, sits on the left, as NERDTree does in
+Vim. It opens at start. With a file argument the cursor goes to the file, and
+otherwise it stays in the tree. It follows the current file, and nvim quits
+when the tree is the last window. `:q` in the tree also quits when the only
+other window holds the empty buffer that nvim starts with. With a file open, it
+closes only the tree. Each new tab gets its own copy of the tree, because Vim
+tabs cannot share a window. `Shift+Enter` (or `t`) in the tree opens a file in
+a new tab. Shift+Enter needs a terminal that reports it apart from Enter.
+`<Space>tw` saves the files in the current tab only. `<Space>tq` closes the tab
+and discards its unsaved changes. In the last tab it quits, but still asks
+about unsaved files in other buffers. Plain `:q!` does not close a tab cleanly,
 because Neo-tree refuses to close a tree beside a modified file, and
 `:tabclose!` keeps the changes in memory. `Tab` reveals the current file in the
 tree, as Zed's `RevealInProjectPanel` does, and `Tab` in the tree goes back. In
@@ -80,6 +82,13 @@ all files.
 
 In netrw (`:Ex`), `gh` searches the browsed directory, and `g.` shows or hides
 dot-files, because netrw's own `gh` did that.
+
+Each file window has a header bar (`winbar`): the path from the git root, or
+from the working directory outside a repository, with the folders faint and a
+`●` for unsaved changes. On the right it shows the size on disk, the encoding,
+and the line ending format. The tree, Telescope, and floating windows get no
+header. `<Space>yr` copies the relative path to the system clipboard, and
+`<Space>ya` the absolute one.
 
 Inline git blame shows on the cursor line after 300 ms, as Zed does: `author,
 time ago • summary` after the end of the line. Its color is 45% of the theme's
