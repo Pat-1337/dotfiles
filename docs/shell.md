@@ -57,3 +57,10 @@ edit. So `secrets` adds `-f` for `mvim`/`gvim` and `--wait` for
 Sourced last, on both platforms. It is for settings that belong to one machine
 and stay out of this repository. On Linux, `setup.sh` also puts your custom
 `~/.bashrc` lines there. See [omarchy.md](omarchy.md).
+
+## iTerm2
+
+`⌥⌫` deletes the word before the cursor. The profile maps it to `Ctrl-W` (hex
+`0x17`), which zsh binds to `backward-kill-word` and which deletes a word in
+Neovim's insert mode and in most other terminal programs. In Neovim's normal
+mode, `Ctrl-W` starts a window command, so `⌥⌫` waits there for a second key.

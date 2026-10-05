@@ -51,7 +51,7 @@ These follow Zed's vim mode. Without a language server, `gd` is Vim's own.
 | `gA` | Find all references |
 | `g.` | Code actions |
 | `gs` / `gS` | Symbols in the file / in the project |
-| `cd` | Rename |
+| `cd`, `grn` | Rename the symbol under the cursor, only where the language server says it is used |
 | `K` | Hover |
 | `g]` / `g[`, `]d` / `[d` | Next / previous diagnostic |
 
