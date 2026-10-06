@@ -146,6 +146,61 @@ end
 vim.keymap.set('n', '<leader>yr', function() copy_file_path(false) end, { desc = '[Y]ank [R]elative path' })
 vim.keymap.set('n', '<leader>ya', function() copy_file_path(true) end, { desc = '[Y]ank [A]bsolute path' })
 
+local watchers = {}
+local function unwatch(buf)
+  local w = watchers[buf]
+  if not w then return end
+  w.handle:stop()
+  w.handle:close()
+  w.timer:stop()
+  w.timer:close()
+  watchers[buf] = nil
+end
+local function watch(buf)
+  unwatch(buf)
+  local path = vim.api.nvim_buf_get_name(buf)
+  if path == '' or vim.bo[buf].buftype ~= '' or vim.fn.filereadable(path) == 0 then return end
+  local handle, timer = vim.uv.new_fs_event(), vim.uv.new_timer()
+  watchers[buf] = { handle = handle, timer = timer }
+  handle:start(path, {}, function()
+    timer:stop()
+    timer:start(5000, 0, vim.schedule_wrap(function()
+      if not vim.api.nvim_buf_is_valid(buf) then return unwatch(buf) end
+      vim.cmd.checktime(buf)
+      watch(buf)
+    end))
+  end)
+end
+vim.api.nvim_create_autocmd({ 'BufReadPost', 'BufWritePost', 'BufFilePost' }, {
+  group = vim.api.nvim_create_augroup('dotfiles-watch', { clear = true }),
+  callback = function(ev) watch(ev.buf) end,
+})
+vim.api.nvim_create_autocmd({ 'BufDelete', 'BufWipeout' }, {
+  group = 'dotfiles-watch',
+  callback = function(ev) unwatch(ev.buf) end,
+})
+for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+  if vim.api.nvim_buf_is_loaded(buf) then watch(buf) end
+end
+
+local function refresh_hints(buf)
+  if not vim.lsp.inlay_hint.is_enabled { bufnr = buf } then return end
+  vim.lsp.inlay_hint.enable(false, { bufnr = buf })
+  vim.schedule(function() vim.lsp.inlay_hint.enable(true, { bufnr = buf }) end)
+end
+vim.api.nvim_create_autocmd('FileChangedShellPost', {
+  group = vim.api.nvim_create_augroup('dotfiles-hints-reload', { clear = true }),
+  callback = function(ev) refresh_hints(ev.buf) end,
+})
+vim.api.nvim_create_autocmd('LspProgress', {
+  group = vim.api.nvim_create_augroup('dotfiles-hints-indexed', { clear = true }),
+  pattern = 'end',
+  callback = function(ev)
+    if ev.data.params.value.title ~= 'Indexing' then return end
+    local client = vim.lsp.get_client_by_id(ev.data.client_id)
+    for buf in pairs(client and client.attached_buffers or {}) do refresh_hints(buf) end
+  end,
+})
 vim.api.nvim_create_autocmd('LspAttach', {
   group = vim.api.nvim_create_augroup('dotfiles-lsp-keys', { clear = true }),
   callback = function(ev)
@@ -209,6 +264,7 @@ if vim.pack and not package.loaded.lazy then
   end
   require('neo-tree').setup {
     close_if_last_window = true,
+    default_component_configs = { container = { enable_character_fade = false } },
     window = {
       position = 'left',
       width = 30,

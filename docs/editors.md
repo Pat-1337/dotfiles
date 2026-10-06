@@ -35,6 +35,12 @@ sends as `Tab`. Within one file, `''` goes back to the last jump, and `g;` and
 `g,` walk the change list. netrw's own `Ctrl-h` and `Ctrl-l` keys are turned
 off, so those keys move between windows everywhere.
 
+Open files are watched with the system's file events (kqueue, inotify), so a
+watch reads nothing from disk while the file stays the same. Five seconds after
+the last outside change, `:checktime` runs for that buffer: an unedited buffer
+reloads, and an edited one asks first, so no change is lost. Saves that write a
+new file and rename it over the old one are followed too.
+
 The LSP keys follow Zed's vim mode: `gd` definition, `gD` declaration, `gy`
 type definition, `gI` implementation, `gA` references, `g.` code actions,
 `gs`/`gS` file and project symbols, `cd` rename, `g]`/`g[` diagnostics, and `K`
@@ -45,12 +51,17 @@ for every server that has them, as in Zed: ty adds variable types
 (`Self@from_crawler`) and argument names (`users=`) inline, and rust-analyzer
 does the same for Rust. They are italic, in 55% of the text color blended into
 the background, set again on every theme change. `<Space>th` turns them off and
-on. Rust uses rust-analyzer from rustup (`setup.sh` adds the component), with
-`~/.cargo/bin` first on its `PATH`: a Homebrew `rust` would otherwise win, and
-it has no `rust-src`, so the standard library would not resolve. Shell scripts
-use bash-language-server, with shellcheck for warnings and shfmt for
-formatting. Kickstart's Mason installs all three on the first start, and the
-server starts when its install ends.
+on. When another program changes an open file and nvim reloads it, nvim keeps
+drawing the old hints at their old columns, inside the new text. So the hints
+of a reloaded buffer are turned off and on again, which clears them and asks
+the server for new ones. The same refresh runs when a server finishes indexing:
+rust-analyzer answers before its analysis is done, with only part of the hints,
+and does not ask for a refresh itself. Rust uses rust-analyzer from rustup
+(`setup.sh` adds the component), with `~/.cargo/bin` first on its `PATH`: a
+Homebrew `rust` would otherwise win, and it has no `rust-src`, so the standard
+library would not resolve. Shell scripts use bash-language-server, with
+shellcheck for warnings and shfmt for formatting. Kickstart's Mason installs
+all three on the first start, and the server starts when its install ends.
 
 Icons need a Nerd Font. `setup.sh` installs Symbols Nerd Font, which holds only
 the icons, and the iTerm2 profile uses it as the non-ASCII font, so text stays
@@ -77,8 +88,11 @@ tree, as Zed's `RevealInProjectPanel` does, and `Tab` in the tree goes back. In
 the tree, `Enter` opens a file, and the keys follow the Zed project panel
 keymap: `a` new file, `A` new directory, `r` rename, `d` delete, `x` cut, `c`
 copy, `p` paste, `h`/`l`/`o` and `zc`/`zo` collapse and expand, `Y` and `gy`
-copy the relative and full path. `/` filters the tree by name. `gh` searches
-all files.
+copy the relative and full path. Names that do not fit are cut at the edge
+without the fade (`enable_character_fade = false`). Neo-tree draws each row for
+the window's width and ignores a sideways scroll, so scrolling the tree
+sideways leaves an empty strip at the edge instead of showing more of a name.
+`/` filters the tree by name. `gh` searches all files.
 
 In netrw (`:Ex`), `gh` searches the browsed directory, and `g.` shows or hides
 dot-files, because netrw's own `gh` did that.
