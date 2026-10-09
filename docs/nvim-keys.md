@@ -8,6 +8,7 @@ The keys that `nvim/dotfiles.lua` adds or changes. `<Space>` is the leader key.
 | --- | --- |
 | `gh` | Search files (Telescope). In netrw, searches the folder being browsed |
 | `g/` | Search the whole project for text, live as you type. In visual mode, for the selection |
+| `/` | Search in the file, starting with the word under the cursor. `Ctrl-u` clears it |
 | `gn` / `gp` | Next / previous buffer |
 | `<Space>bd` | Close the buffer, and its tab if the tab has one window |
 | `Ctrl-o` / `Ctrl-p` | Back / forward through files only, to where you left each one |

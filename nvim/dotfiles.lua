@@ -5,6 +5,7 @@ vim.o.softtabstop = 4
 vim.o.expandtab = true
 vim.o.scrolloff = 5
 
+vim.keymap.set('n', '/', function() return '/' .. vim.fn.escape(vim.fn.expand '<cword>', [[\/.*$^~[]]) end, { expr = true, desc = 'Search, starting with the word under the cursor' })
 vim.keymap.set('n', 'gn', '<cmd>bnext<CR>', { desc = 'Next buffer' })
 vim.keymap.set('n', 'gp', '<cmd>bprevious<CR>', { desc = 'Previous buffer' })
 vim.keymap.set('n', '<leader>bd', function()

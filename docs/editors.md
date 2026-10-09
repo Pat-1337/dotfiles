@@ -26,14 +26,16 @@ which loads after `init.lua`. It mirrors the Vim settings above: relative line
 numbers, 4-column tabs, `scrolloff=5`, and `gn`/`gp` to change buffers. `gh`
 opens Telescope file search where Telescope exists, so LazyVim does not get it.
 `g/` searches the whole project for text with Telescope's live grep (ripgrep),
-as in Zed. In visual mode it searches for the selection. `<Space>bd` closes a
-buffer, and the tab too when the tab has one window. `<Space>tn` opens a new
-tab. `Ctrl-o` and `Ctrl-p` go back and forward through the files in the jump
-list and skip jumps inside one file, as Zed's back and forward do. They land
-where you left each file. `Ctrl-p` stands in for `Ctrl-i`, which the terminal
-sends as `Tab`. Within one file, `''` goes back to the last jump, and `g;` and
-`g,` walk the change list. netrw's own `Ctrl-h` and `Ctrl-l` keys are turned
-off, so those keys move between windows everywhere.
+as in Zed. In visual mode it searches for the selection. `/` opens the search
+with the word under the cursor already typed, escaped so it matches literally.
+Enter searches for it, and `Ctrl-u` clears it for a new search. `<Space>bd`
+closes a buffer, and the tab too when the tab has one window. `<Space>tn` opens
+a new tab. `Ctrl-o` and `Ctrl-p` go back and forward through the files in the
+jump list and skip jumps inside one file, as Zed's back and forward do. They
+land where you left each file. `Ctrl-p` stands in for `Ctrl-i`, which the
+terminal sends as `Tab`. Within one file, `''` goes back to the last jump, and
+`g;` and `g,` walk the change list. netrw's own `Ctrl-h` and `Ctrl-l` keys are
+turned off, so those keys move between windows everywhere.
 
 Open files are watched with the system's file events (kqueue, inotify), so a
 watch reads nothing from disk while the file stays the same. Five seconds after
